@@ -236,7 +236,7 @@ class _HomeTabState extends State<_HomeTab> {
                             scrollDirection: Axis.horizontal,
                             physics: const BouncingScrollPhysics(),
                             itemCount: _todayFoods.length,
-                            separatorBuilder: (_, __) => const SizedBox(width: 14),
+                            separatorBuilder: (_, _) => const SizedBox(width: 14),
                             itemBuilder: (_, i) => FoodCard(food: _todayFoods[i]),
                           ),
               ),

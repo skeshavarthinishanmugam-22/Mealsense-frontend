@@ -43,8 +43,8 @@ class _FoodCardState extends State<FoodCard> with SingleTickerProviderStateMixin
       onTap: () => Navigator.push(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, animation, __) => FoodDetailScreen(food: food),
-          transitionsBuilder: (_, animation, __, child) => SlideTransition(
+          pageBuilder: (_, animation, _) => FoodDetailScreen(food: food),
+          transitionsBuilder: (_, animation, _, child) => SlideTransition(
             position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
                 .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
             child: child,

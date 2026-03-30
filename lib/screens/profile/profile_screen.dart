@@ -336,8 +336,7 @@ class _NutritionCard extends StatelessWidget {
 class _MacroChip extends StatelessWidget {
   final String label, value, unit;
   final Color color;
-  final bool fullWidth;
-  const _MacroChip({required this.label, required this.value, required this.unit, required this.color, this.fullWidth = false});
+  const _MacroChip({required this.label, required this.value, required this.unit, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -345,7 +344,7 @@ class _MacroChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(color: color.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(12)),
       child: Row(
-        mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 8),
@@ -355,7 +354,7 @@ class _MacroChip extends StatelessWidget {
         ],
       ),
     );
-    return fullWidth ? SizedBox(width: double.infinity, child: child) : Expanded(child: child);
+    return Expanded(child: child);
   }
 }
 
@@ -455,14 +454,12 @@ class _EditField extends StatelessWidget {
   final TextEditingController controller;
   final String label;
   final IconData icon;
-  final TextInputType type;
-  const _EditField({required this.controller, required this.label, required this.icon, this.type = TextInputType.text});
+  const _EditField({required this.controller, required this.label, required this.icon});
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      keyboardType: type,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon),

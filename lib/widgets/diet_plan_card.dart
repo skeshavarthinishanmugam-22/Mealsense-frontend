@@ -45,9 +45,9 @@ class _DietPlanCardState extends State<DietPlanCard>
       onTap: () => Navigator.push(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, animation, __) =>
+          pageBuilder: (_, animation, _) =>
               DietPlanScreen(plan: widget.plan),
-          transitionsBuilder: (_, animation, __, child) => SlideTransition(
+          transitionsBuilder: (_, animation, _, child) => SlideTransition(
             position: Tween<Offset>(
               begin: const Offset(0, 1),
               end: Offset.zero,

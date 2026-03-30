@@ -99,7 +99,7 @@ class _CalorieCardState extends State<CalorieCard>
                     // Circular progress
                     AnimatedBuilder(
                       animation: _progressAnim,
-                      builder: (_, __) => SizedBox(
+                      builder: (_, _) => SizedBox(
                         width: 120,
                         height: 120,
                         child: CustomPaint(
@@ -218,7 +218,7 @@ class _CalorieCardState extends State<CalorieCard>
                         const SizedBox(height: 12),
                         AnimatedBuilder(
                           animation: _progressAnim,
-                          builder: (_, __) => _MacroProgressBar(
+                          builder: (_, _) => _MacroProgressBar(
                             proteinPct: (widget.protein / 150 * _progressAnim.value).clamp(0.0, 1.0),
                             carbsPct: (widget.carbs / 250 * _progressAnim.value).clamp(0.0, 1.0),
                             fatPct: (widget.fat / 70 * _progressAnim.value).clamp(0.0, 1.0),

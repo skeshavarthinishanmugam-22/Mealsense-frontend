@@ -80,7 +80,7 @@ class _SignupScreenState extends State<SignupScreen>
       resizeToAvoidBottomInset: true,
       body: AnimatedBuilder(
         animation: _gradientAnim,
-        builder: (_, __) => Container(
+        builder: (_, _) => Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: const [
@@ -167,11 +167,13 @@ class _SignupScreenState extends State<SignupScreen>
                               icon: Icons.email_outlined,
                               keyboardType: TextInputType.emailAddress,
                               validator: (v) {
-                                if (v == null || v.trim().isEmpty)
+                                if (v == null || v.trim().isEmpty) {
                                   return 'Email is required';
+                                }
                                 if (!RegExp(r'^[\w.-]+@[\w.-]+\.\w+$')
-                                    .hasMatch(v.trim()))
+                                    .hasMatch(v.trim())) {
                                   return 'Enter a valid email';
+                                }
                                 return null;
                               },
                             ),
@@ -182,8 +184,9 @@ class _SignupScreenState extends State<SignupScreen>
                               icon: Icons.lock_outline,
                               isPassword: true,
                               validator: (v) {
-                                if (v == null || v.isEmpty)
+                                if (v == null || v.isEmpty) {
                                   return 'Password is required';
+                                }
                                 if (v.length < 6) return 'Min 6 characters';
                                 return null;
                               },

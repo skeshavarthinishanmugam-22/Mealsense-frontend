@@ -108,12 +108,12 @@ class _WaterTrackerState extends State<WaterTracker>
                     // Wave circle
                     AnimatedBuilder(
                       animation: _progressAnim,
-                      builder: (_, __) => SizedBox(
+                      builder: (_, _) => SizedBox(
                         width: 72,
                         height: 72,
                         child: AnimatedBuilder(
                           animation: _waveController,
-                          builder: (_, __) => CustomPaint(
+                          builder: (_, _) => CustomPaint(
                             painter: _WavePainter(
                               progress: _progressAnim.value,
                               wavePhase: _waveController.value,
@@ -155,7 +155,7 @@ class _WaterTrackerState extends State<WaterTracker>
                           const SizedBox(height: 8),
                           AnimatedBuilder(
                             animation: _progressAnim,
-                            builder: (_, __) => ClipRRect(
+                            builder: (_, _) => ClipRRect(
                               borderRadius: BorderRadius.circular(6),
                               child: LinearProgressIndicator(
                                 value: _progressAnim.value,

@@ -56,8 +56,8 @@ class _ExerciseCardState extends State<ExerciseCard>
       onTap: () => Navigator.push(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, animation, __) => const ActivityScreen(),
-          transitionsBuilder: (_, animation, __, child) => FadeTransition(
+          pageBuilder: (_, animation, _) => const ActivityScreen(),
+          transitionsBuilder: (_, animation, _, child) => FadeTransition(
             opacity: animation,
             child: child,
           ),

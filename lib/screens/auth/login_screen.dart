@@ -137,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
       resizeToAvoidBottomInset: true,
       body: AnimatedBuilder(
         animation: _gradientAnim,
-        builder: (_, __) => Container(
+        builder: (_, _) => Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: const [Color(0xFF0D1B2A), Color(0xFF1B4332), Color(0xFF00C853)],

@@ -119,7 +119,7 @@ class _FoodListScreenState extends State<FoodListScreen> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: _categories.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              separatorBuilder: (_, _) => const SizedBox(width: 8),
               itemBuilder: (_, i) {
                 final cat = _categories[i];
                 final sel = cat == _selectedCategory;
@@ -245,8 +245,8 @@ class _FoodListTile extends StatelessWidget {
       onTap: () => Navigator.push(
         context,
         PageRouteBuilder(
-          pageBuilder: (_, a, __) => FoodDetailScreen(food: food),
-          transitionsBuilder: (_, a, __, child) => SlideTransition(
+          pageBuilder: (_, a, _) => FoodDetailScreen(food: food),
+          transitionsBuilder: (_, a, _, child) => SlideTransition(
             position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
                 .animate(CurvedAnimation(parent: a, curve: Curves.easeOutCubic)),
             child: child,
