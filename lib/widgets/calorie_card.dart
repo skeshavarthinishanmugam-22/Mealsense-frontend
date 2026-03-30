@@ -63,7 +63,7 @@ class _CalorieCardState extends State<CalorieCard>
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0D1B2A).withOpacity(0.6),
+            color: const Color(0xFF0D1B2A).withValues(alpha: 0.6),
             blurRadius: 24,
             offset: const Offset(0, 10),
           ),
@@ -82,7 +82,7 @@ class _CalorieCardState extends State<CalorieCard>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    const Color(0xFF00C853).withOpacity(0.15),
+                    const Color(0xFF00C853).withValues(alpha: 0.15),
                     Colors.transparent,
                   ],
                 ),
@@ -201,9 +201,9 @@ class _CalorieCardState extends State<CalorieCard>
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.white.withOpacity(0.07)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
                     ),
                     child: Column(
                       children: [
@@ -337,7 +337,7 @@ class _RingPainter extends CustomPainter {
       center,
       radius,
       Paint()
-        ..color = Colors.white.withOpacity(0.07)
+        ..color = Colors.white.withValues(alpha: 0.07)
         ..strokeWidth = stroke
         ..style = PaintingStyle.stroke,
     );
@@ -349,7 +349,7 @@ class _RingPainter extends CustomPainter {
       2 * math.pi * progress,
       false,
       Paint()
-        ..color = const Color(0xFF00C853).withOpacity(0.3)
+        ..color = const Color(0xFF00C853).withValues(alpha: 0.3)
         ..strokeWidth = stroke + 6
         ..style = PaintingStyle.stroke
         ..strokeCap = StrokeCap.round

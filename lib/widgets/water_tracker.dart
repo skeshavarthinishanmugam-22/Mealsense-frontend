@@ -77,7 +77,7 @@ class _WaterTrackerState extends State<WaterTracker>
         borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF1565C0).withOpacity(0.45),
+            color: const Color(0xFF1565C0).withValues(alpha: 0.45),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -94,7 +94,7 @@ class _WaterTrackerState extends State<WaterTracker>
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.05),
               ),
             ),
           ),
@@ -160,7 +160,7 @@ class _WaterTrackerState extends State<WaterTracker>
                               child: LinearProgressIndicator(
                                 value: _progressAnim.value,
                                 minHeight: 6,
-                                backgroundColor: Colors.white.withOpacity(0.2),
+                                backgroundColor: Colors.white.withValues(alpha: 0.2),
                                 valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
                               ),
                             ),
@@ -203,10 +203,10 @@ class _WaterTrackerState extends State<WaterTracker>
                       width: filled ? 20 : 16,
                       height: filled ? 20 : 16,
                       decoration: BoxDecoration(
-                        color: filled ? Colors.white : Colors.white.withOpacity(0.2),
+                        color: filled ? Colors.white : Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(5),
                         boxShadow: filled
-                            ? [BoxShadow(color: Colors.white.withOpacity(0.4), blurRadius: 6)]
+                            ? [BoxShadow(color: Colors.white.withValues(alpha: 0.4), blurRadius: 6)]
                             : null,
                       ),
                       child: Center(
@@ -237,9 +237,9 @@ class _WaterBtn extends StatelessWidget {
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
+          color: Colors.white.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withOpacity(0.3)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
         ),
         child: Icon(icon, color: Colors.white, size: 18),
       ),
@@ -262,7 +262,7 @@ class _WavePainter extends CustomPainter {
     // Background
     canvas.drawRect(
       rect,
-      Paint()..color = Colors.white.withOpacity(0.15),
+      Paint()..color = Colors.white.withValues(alpha: 0.15),
     );
 
     // Wave fill
@@ -284,8 +284,8 @@ class _WavePainter extends CustomPainter {
       Paint()
         ..shader = LinearGradient(
           colors: [
-            Colors.white.withOpacity(0.6),
-            Colors.white.withOpacity(0.3),
+            Colors.white.withValues(alpha: 0.6),
+            Colors.white.withValues(alpha: 0.3),
           ],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
@@ -296,7 +296,7 @@ class _WavePainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(36)),
       Paint()
-        ..color = Colors.white.withOpacity(0.3)
+        ..color = Colors.white.withValues(alpha: 0.3)
         ..strokeWidth = 2
         ..style = PaintingStyle.stroke,
     );

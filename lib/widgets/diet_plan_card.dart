@@ -68,7 +68,7 @@ class _DietPlanCardState extends State<DietPlanCard>
             borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
-                color: color.withOpacity(0.15),
+                color: color.withValues(alpha: 0.15),
                 blurRadius: 14,
                 offset: const Offset(0, 5),
               ),
@@ -83,8 +83,8 @@ class _DietPlanCardState extends State<DietPlanCard>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      color.withOpacity(0.15),
-                      color.withOpacity(0.05),
+                      color.withValues(alpha: 0.15),
+                      color.withValues(alpha: 0.05),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -103,7 +103,7 @@ class _DietPlanCardState extends State<DietPlanCard>
                         width: 70,
                         height: 70,
                         decoration: BoxDecoration(
-                          color: color.withOpacity(0.1),
+                          color: color.withValues(alpha: 0.1),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -121,7 +121,7 @@ class _DietPlanCardState extends State<DietPlanCard>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: color.withOpacity(0.15),
+                              color: color.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(

@@ -40,7 +40,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
             _SectionHeader(title: '💧 Water Reminders', trailing: Switch(
               value: _waterReminder,
               onChanged: (v) => setState(() => _waterReminder = v),
-              activeColor: const Color(0xFF1E88E5),
+              activeThumbColor: const Color(0xFF1E88E5),
             )),
             if (_waterReminder) ...[
               const SizedBox(height: 8),
@@ -100,7 +100,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   trailing: Switch(
                     value: enabled,
                     onChanged: onChanged,
-                    activeColor: const Color(0xFF00C853),
+                    activeThumbColor: const Color(0xFF00C853),
                   ),
                 ),
               );
@@ -117,7 +117,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
               decoration: BoxDecoration(
                 color: const Color(0xFFE8F5E9),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF00C853).withOpacity(0.3)),
+                border: Border.all(color: const Color(0xFF00C853).withValues(alpha: 0.3)),
               ),
               child: Column(
                 children: [
@@ -132,7 +132,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       Switch(
                         value: _whatsappReminder,
                         onChanged: (v) => setState(() => _whatsappReminder = v),
-                        activeColor: const Color(0xFF00C853),
+                        activeThumbColor: const Color(0xFF00C853),
                       ),
                     ],
                   ),
@@ -218,7 +218,7 @@ class _WhatsAppPreview extends StatelessWidget {
           bottomLeft: Radius.circular(12),
           bottomRight: Radius.circular(12),
         ),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 4)],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 4)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

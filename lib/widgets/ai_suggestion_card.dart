@@ -123,7 +123,7 @@ class _AiSuggestionCardState extends State<AiSuggestionCard>
             borderRadius: BorderRadius.circular(26),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF7B1FA2).withOpacity(0.45),
+                color: const Color(0xFF7B1FA2).withValues(alpha: 0.45),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -139,7 +139,7 @@ class _AiSuggestionCardState extends State<AiSuggestionCard>
                   width: 100,
                   height: 100,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.06),
+                    color: Colors.white.withValues(alpha: 0.06),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -151,7 +151,7 @@ class _AiSuggestionCardState extends State<AiSuggestionCard>
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.04),
+                    color: Colors.white.withValues(alpha: 0.04),
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -168,9 +168,9 @@ class _AiSuggestionCardState extends State<AiSuggestionCard>
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.18),
+                            color: Colors.white.withValues(alpha: 0.18),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.white.withOpacity(0.25)),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
                           ),
                           child: const Row(
                             mainAxisSize: MainAxisSize.min,
@@ -200,7 +200,7 @@ class _AiSuggestionCardState extends State<AiSuggestionCard>
                             decoration: BoxDecoration(
                               color: i == _tipIndex
                                   ? Colors.white
-                                  : Colors.white.withOpacity(0.35),
+                                  : Colors.white.withValues(alpha: 0.35),
                               borderRadius: BorderRadius.circular(3),
                             ),
                           )),
@@ -219,9 +219,9 @@ class _AiSuggestionCardState extends State<AiSuggestionCard>
                             width: 54,
                             height: 54,
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.18),
+                              color: Colors.white.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(16),
-                              border: Border.all(color: Colors.white.withOpacity(0.25)),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
                             ),
                             child: Center(
                               child: Text(
@@ -268,7 +268,7 @@ class _AiSuggestionCardState extends State<AiSuggestionCard>
                         Text(
                           'Based on: ${dummyUser.goal} • ${dummyUser.activityLevel}',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
+                            color: Colors.white.withValues(alpha: 0.5),
                             fontSize: 11,
                           ),
                         ),
@@ -277,9 +277,9 @@ class _AiSuggestionCardState extends State<AiSuggestionCard>
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.18),
+                              color: Colors.white.withValues(alpha: 0.18),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withOpacity(0.25)),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,

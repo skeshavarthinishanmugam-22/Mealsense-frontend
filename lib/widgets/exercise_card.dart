@@ -77,7 +77,7 @@ class _ExerciseCardState extends State<ExerciseCard>
             borderRadius: BorderRadius.circular(22),
             boxShadow: [
               BoxShadow(
-                color: widget.gradientColors.last.withOpacity(0.4),
+                color: widget.gradientColors.last.withValues(alpha: 0.4),
                 blurRadius: 12,
                 offset: const Offset(0, 5),
               ),
@@ -92,7 +92,7 @@ class _ExerciseCardState extends State<ExerciseCard>
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.25),
+                  color: Colors.white.withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Center(
@@ -133,7 +133,7 @@ class _ExerciseCardState extends State<ExerciseCard>
                     padding: const EdgeInsets.symmetric(
                         horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
+                      color: Colors.white.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
