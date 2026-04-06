@@ -1,33 +1,33 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
 import '../config/app_config.dart';
+import 'session_manager.dart';
 
 class ApiService {
-  static const String _tokenKey = 'jwt_token';
-
   static String get baseUrl =>
       'http://${AppConfig.host}:${AppConfig.port}/api/v1';
 
   // ── Token helpers ──────────────────────────────────────────────────────────
 
-  static Future<void> saveToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_tokenKey, token);
+  /// Save JWT token and user info using SessionManager
+  static Future<void> saveToken(String token, String userId, String userEmail) async {
+    final sessionManager = SessionManager();
+    await sessionManager.saveToken(token, userId, userEmail);
   }
 
-  static Future<String?> getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_tokenKey);
+  /// Get token from SessionManager
+  static String? getToken() {
+    return SessionManager().getToken();
   }
 
+  /// Clear token using SessionManager (logout)
   static Future<void> clearToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_tokenKey);
+    await SessionManager().clearToken();
   }
 
-  static Future<Map<String, String>> _authHeaders() async {
-    final token = await getToken();
+  /// Get authorization headers with token
+  static Map<String, String> _authHeaders() {
+    final token = getToken();
     return {
       'Content-Type': 'application/json',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -54,7 +54,14 @@ class ApiService {
       }),
     );
     final data = jsonDecode(res.body) as Map<String, dynamic>;
-    if (data['token'] != null) await saveToken(data['token'] as String);
+    if (data['token'] != null && data['user'] != null) {
+      final user = data['user'] as Map<String, dynamic>;
+      await saveToken(
+        data['token'] as String,
+        user['id'] as String,
+        email,
+      );
+    }
     return {'statusCode': res.statusCode, ...data};
   }
 
@@ -71,8 +78,13 @@ class ApiService {
       body: jsonEncode({'email': email, 'password': password}),
     );
     final data = jsonDecode(res.body) as Map<String, dynamic>;
-    if (res.statusCode == 200 && data['token'] != null) {
-      await saveToken(data['token'] as String);
+    if (res.statusCode == 200 && data['token'] != null && data['user'] != null) {
+      final user = data['user'] as Map<String, dynamic>;
+      await saveToken(
+        data['token'] as String,
+        user['id'] as String,
+        email,
+      );
     }
     return {'statusCode': res.statusCode, ...data};
   }
@@ -82,7 +94,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getCurrentUser() async {
     final res = await http.get(
       Uri.parse('$baseUrl/auth/me'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     return {
       'statusCode': res.statusCode,
@@ -95,7 +107,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getUserProfile() async {
     final res = await http.get(
       Uri.parse('$baseUrl/auth/profile'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     if (res.statusCode == 200) {
       return {
@@ -118,7 +130,7 @@ class ApiService {
     if (goal != null) params['goal'] = goal;
     final uri = Uri.parse('$baseUrl/auth/profile')
         .replace(queryParameters: params);
-    final res = await http.put(uri, headers: await _authHeaders());
+    final res = await http.put(uri, headers: _authHeaders());
     return {
       'statusCode': res.statusCode,
       ...jsonDecode(res.body) as Map<String, dynamic>,
@@ -145,7 +157,7 @@ class ApiService {
   }) async {
     final res = await http.post(
       Uri.parse('$baseUrl/onboarding'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
       body: jsonEncode({
         'age': age,
         'weightKg': weightKg,
@@ -167,7 +179,7 @@ class ApiService {
   static Future<bool> getOnboardingStatus() async {
     final res = await http.get(
       Uri.parse('$baseUrl/onboarding/status'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body) as Map<String, dynamic>;
@@ -186,7 +198,7 @@ class ApiService {
   }) async {
     final res = await http.get(
       Uri.parse('$baseUrl/meals?page=$page&size=$size'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     return {
       'statusCode': res.statusCode,
@@ -199,7 +211,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getMealById(String mealId) async {
     final res = await http.get(
       Uri.parse('$baseUrl/meals/$mealId'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     return {
       'statusCode': res.statusCode,
@@ -212,7 +224,7 @@ class ApiService {
   static Future<List<dynamic>> getFavoriteMeals() async {
     final res = await http.get(
       Uri.parse('$baseUrl/meals/favorites'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
     return [];
@@ -227,7 +239,7 @@ class ApiService {
   }) async {
     final res = await http.get(
       Uri.parse('$baseUrl/meals/category/$category?page=$page&size=$size'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     return {
       'statusCode': res.statusCode,
@@ -242,7 +254,7 @@ class ApiService {
       Map<String, dynamic> body) async {
     final res = await http.post(
       Uri.parse('$baseUrl/meals'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
       body: jsonEncode(body),
     );
     return {
@@ -260,7 +272,7 @@ class ApiService {
   ) async {
     final res = await http.put(
       Uri.parse('$baseUrl/meals/$mealId'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
       body: jsonEncode(body),
     );
     return {
@@ -274,7 +286,7 @@ class ApiService {
   static Future<Map<String, dynamic>> toggleFavorite(String mealId) async {
     final res = await http.put(
       Uri.parse('$baseUrl/meals/$mealId/favorite'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     return {
       'statusCode': res.statusCode,
@@ -287,7 +299,7 @@ class ApiService {
   static Future<int> deleteMeal(String mealId) async {
     final res = await http.delete(
       Uri.parse('$baseUrl/meals/$mealId'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     return res.statusCode;
   }
@@ -299,7 +311,7 @@ class ApiService {
   static Future<List<dynamic>> getAllFoodSuggestions({int limit = 20}) async {
     final res = await http.get(
       Uri.parse('$baseUrl/suggestions/foods?limit=$limit'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
     return [];
@@ -314,7 +326,7 @@ class ApiService {
   }) async {
     final res = await http.get(
       Uri.parse('$baseUrl/suggestions/foods/$category?limit=$limit'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     if (res.statusCode == 200) return jsonDecode(res.body) as List<dynamic>;
     return [];
@@ -325,7 +337,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getDailyMealPlan() async {
     final res = await http.get(
       Uri.parse('$baseUrl/suggestions/meal-plan'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     if (res.statusCode == 200) {
       return jsonDecode(res.body) as Map<String, dynamic>;
@@ -341,7 +353,7 @@ class ApiService {
   static Future<Map<String, dynamic>> logMealAte(String foodId) async {
     final res = await http.post(
       Uri.parse('$baseUrl/suggestions/foods/$foodId/ate'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     return {
       'statusCode': res.statusCode,
@@ -355,7 +367,7 @@ class ApiService {
   static Future<Map<String, dynamic>> logMealSkip(String foodId) async {
     final res = await http.post(
       Uri.parse('$baseUrl/suggestions/foods/$foodId/skip'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
     );
     return {
       'statusCode': res.statusCode,
@@ -372,7 +384,7 @@ class ApiService {
   ) async {
     final res = await http.post(
       Uri.parse('$baseUrl/suggestions/foods/$foodId/substitute'),
-      headers: await _authHeaders(),
+      headers: _authHeaders(),
       body: jsonEncode({'substituteId': substituteId}),
     );
     return {

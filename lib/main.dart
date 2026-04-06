@@ -4,8 +4,14 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
+import 'services/session_manager.dart';
 
-void main() => runApp(const MealSenseApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Initialize session manager to load saved token
+  await SessionManager().initialize();
+  runApp(const MealSenseApp());
+}
 
 class MealSenseApp extends StatefulWidget {
   const MealSenseApp({super.key});
@@ -16,6 +22,21 @@ class MealSenseApp extends StatefulWidget {
 
 class _MealSenseAppState extends State<MealSenseApp> {
   final _userNotifier = UserNotifier();
+
+  @override
+  void initState() {
+    super.initState();
+    // Load user from saved session if exists
+    _loadUserSession();
+  }
+
+  Future<void> _loadUserSession() async {
+    final sessionManager = SessionManager();
+    if (sessionManager.isLoggedIn() && !sessionManager.isTokenExpired()) {
+      // User has valid token, try to load profile
+      // This would be called from your UserProvider
+    }
+  }
 
   @override
   void dispose() {
@@ -40,7 +61,10 @@ class _MealSenseAppState extends State<MealSenseApp> {
                 borderRadius: BorderRadius.circular(14)),
           ),
         ),
-        initialRoute: '/login',
+        // Check if user is logged in, otherwise go to login screen
+        initialRoute: SessionManager().isLoggedIn() 
+          ? (SessionManager().isTokenExpired() ? '/login' : '/dashboard')
+          : '/login',
         routes: {
           '/login': (_) => const LoginScreen(),
           '/signup': (_) => const SignupScreen(),
