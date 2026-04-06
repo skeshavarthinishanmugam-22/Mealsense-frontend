@@ -33,19 +33,20 @@ class _ActivityScreenState extends State<ActivityScreen>
   Future<void> _loadMeals() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final res = await ApiService.getMeals(size: 20);
+      // Load today's meal history from MealLog
+      final res = await ApiService.getMealHistory();
+      final history = res['history'] as List<dynamic>? ?? [];
+      
+      // For favorites, still load from old meals endpoint for now
       final favs = await ApiService.getFavoriteMeals();
-      if (res['statusCode'] == 200) {
-        final content = res['content'] as List<dynamic>? ?? [];
-        setState(() {
-          _meals = content;
-          _favorites = favs;
-          _loading = false;
-        });
-      } else {
-        setState(() { _error = 'Failed to load meals'; _loading = false; });
-      }
-    } catch (_) {
+      
+      setState(() {
+        _meals = history;
+        _favorites = favs;
+        _loading = false;
+      });
+    } catch (e) {
+      print('Error loading meals: $e');
       setState(() { _error = 'Network error'; _loading = false; });
     }
   }
@@ -151,10 +152,10 @@ class _ActivityScreenState extends State<ActivityScreen>
       );
     }
 
-    // Group meals by category
+    // Group meals by category (mealCategory for MealLog, category for Meal)
     final grouped = <String, List<dynamic>>{};
     for (final m in meals) {
-      final cat = (m['category'] as String? ?? 'Other').toUpperCase();
+      final cat = (m['mealCategory'] as String? ?? m['category'] as String? ?? 'Other').toUpperCase();
       grouped.putIfAbsent(cat, () => []).add(m);
     }
 
@@ -173,9 +174,7 @@ class _ActivityScreenState extends State<ActivityScreen>
               const SizedBox(height: 8),
               ...entry.value.map((m) => _MealTile(
                 meal: m,
-                onFavorite: () => _toggleFavorite(m['id'] as String),
-                onDelete: () => _deleteMeal(m['id'] as String),
-                onEdit: () => _showEditMealSheet(context, m),
+                onDelete: () => _deleteMeal(m['id'] as String? ?? ''),
               )),
               const SizedBox(height: 12),
             ],
@@ -214,9 +213,12 @@ class _SummaryBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Handle both Meal and MealLog formats
     final totalCal = meals.fold<int>(0, (s, m) => s + ((m['calories'] as int?) ?? 0));
-    final totalProtein = meals.fold<int>(0, (s, m) => s + ((m['protein'] as int?) ?? 0));
-    final favorites = meals.where((m) => m['isFavorite'] == true).length;
+    final totalProtein = meals.fold<double>(0, (s, m) {
+      final protein = m['proteinGrams'] as dynamic ?? m['protein'] as dynamic;
+      return s + (protein is num ? protein.toDouble() : 0.0);
+    });
     final u = UserProvider.of(context).user;
     final target = u?.dailyCalorieTarget ?? 0;
 
@@ -236,8 +238,8 @@ class _SummaryBar extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _SumStat(label: 'Total Calories', value: '$totalCal kcal', color: const Color(0xFFFF6B35)),
-              _SumStat(label: 'Protein', value: '${totalProtein}g', color: const Color(0xFF64B5F6)),
-              _SumStat(label: 'Favourites', value: '$favorites', color: const Color(0xFFFFB300)),
+              _SumStat(label: 'Protein', value: '${totalProtein.toStringAsFixed(1)}g', color: const Color(0xFF64B5F6)),
+              _SumStat(label: 'Meals', value: '${meals.length}', color: const Color(0xFFFFB300)),
             ],
           ),
           if (target > 0) ...[
@@ -306,17 +308,17 @@ class _CategoryHeader extends StatelessWidget {
 
 class _MealTile extends StatelessWidget {
   final dynamic meal;
-  final VoidCallback onFavorite;
   final VoidCallback onDelete;
-  final VoidCallback onEdit;
-  const _MealTile({required this.meal, required this.onFavorite, required this.onDelete, required this.onEdit});
+  const _MealTile({required this.meal, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
-    final isFav = meal['isFavorite'] == true;
+    // Handle both Meal and MealLog formats
+    final name = meal['mealName'] as String? ?? meal['name'] as String? ?? '';
     final calories = meal['calories'] as int?;
-    final protein = meal['protein'] as int?;
-    final rating = meal['rating'] as double?;
+    final protein = meal['proteinGrams'] as dynamic ?? meal['protein'] as dynamic;
+    final carbs = meal['carbsGrams'] as dynamic;
+    final fat = meal['fatGrams'] as dynamic;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -324,68 +326,23 @@ class _MealTile extends StatelessWidget {
       elevation: 1,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        title: Text(meal['name'] as String? ?? '',
+        title: Text(name,
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (meal['description'] != null && (meal['description'] as String).isNotEmpty)
-              Text(meal['description'] as String,
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 4),
             Wrap(spacing: 8, children: [
               if (calories != null) _Chip('🔥 $calories kcal', const Color(0xFFFF6B35)),
-              if (protein != null) _Chip('💪 ${protein}g protein', const Color(0xFF1E88E5)),
-              if (rating != null) _Chip('⭐ ${rating.toStringAsFixed(1)}', const Color(0xFFFFB300)),
+              if (protein != null) _Chip('💪 ${(protein is num ? protein.toStringAsFixed(1) : protein)}g', const Color(0xFF1E88E5)),
+              if (carbs != null) _Chip('🌾 ${(carbs is num ? carbs.toStringAsFixed(1) : carbs)}g', const Color(0xFFFFB300)),
             ]),
           ],
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: Icon(isFav ? Icons.favorite : Icons.favorite_border,
-                  color: isFav ? Colors.red : Colors.grey, size: 20),
-              onPressed: onFavorite,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-            const SizedBox(width: 2),
-            IconButton(
-              icon: const Icon(Icons.edit_outlined, color: Colors.grey, size: 20),
-              onPressed: onEdit,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-            const SizedBox(width: 2),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.grey, size: 20),
-              onPressed: () => _confirmDelete(context),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
-          ],
+        trailing: IconButton(
+          icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+          onPressed: onDelete,
         ),
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete Meal'),
-        content: Text('Delete "${meal['name']}"?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () { Navigator.pop(context); onDelete(); },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-            child: const Text('Delete'),
-          ),
-        ],
       ),
     );
   }

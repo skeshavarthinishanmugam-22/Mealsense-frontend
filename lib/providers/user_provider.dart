@@ -245,6 +245,7 @@ class UserNotifier extends ChangeNotifier {
     required String gender,
     required String goal,
     required String activityLevel,
+    String? dietaryPreference,
     List<String> allergies = const [],
   }) async {
     try {
@@ -255,6 +256,7 @@ class UserNotifier extends ChangeNotifier {
         gender: gender,
         goal: goal,
         activityLevel: activityLevel,
+        dietaryPreference: dietaryPreference,
         allergies: allergies,
       );
       if (res['statusCode'] == 200 || res['statusCode'] == 201) {

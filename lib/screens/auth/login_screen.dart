@@ -150,10 +150,12 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
             child: SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
               child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     // ── Logo ──────────────────────────────────────────────
-                    Expanded(
+                    Flexible(
                       flex: 3,
+                      fit: FlexFit.loose,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 28),
                         child: Column(

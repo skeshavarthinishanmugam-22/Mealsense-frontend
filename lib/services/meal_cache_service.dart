@@ -33,25 +33,47 @@ class MealCacheService {
   /// Load cache from disk
   void _loadFromDisk() {
     try {
-      final foodsJson = _prefs?.getString(_foodsCacheKey);
-      final planJson = _prefs?.getString(_planCacheKey);
       final timestampStr = _prefs?.getString(_timestampCacheKey);
+      if (timestampStr == null) {
+        print('[MealCache] No timestamp found on disk');
+        return;
+      }
       
-      if (foodsJson != null && planJson != null && timestampStr != null) {
-        _cacheTimestamp = DateTime.parse(timestampStr);
-        
-        // Check if cache is still valid (same day)
-        if (_isCacheValid()) {
+      _cacheTimestamp = DateTime.parse(timestampStr);
+      
+      // Check if timestamp is still valid (same day)
+      if (!_isCacheValid()) {
+        print('[MealCache] Cache expired (different day)');
+        _clearDisk();
+        return;
+      }
+      
+      // Load foods if available
+      final foodsJson = _prefs?.getString(_foodsCacheKey);
+      if (foodsJson != null) {
+        try {
           final foodsList = (jsonDecode(foodsJson) as List)
               .map((f) => FoodModel.fromJson(f as Map<String, dynamic>))
               .toList();
           _cachedFoods = foodsList;
-          _cachedMealPlan = jsonDecode(planJson) as Map<String, dynamic>;
-          print('[MealCache] Loaded from disk: ${foodsList.length} foods, timestamp: $_cacheTimestamp');
-        } else {
-          _clearDisk();
+          print('[MealCache] ✓ Loaded ${foodsList.length} foods from disk');
+        } catch (e) {
+          print('[MealCache] Error parsing foods: $e');
         }
       }
+      
+      // Load meal plan if available
+      final planJson = _prefs?.getString(_planCacheKey);
+      if (planJson != null) {
+        try {
+          _cachedMealPlan = jsonDecode(planJson) as Map<String, dynamic>;
+          print('[MealCache] ✓ Loaded meal plan from disk');
+        } catch (e) {
+          print('[MealCache] Error parsing meal plan: $e');
+        }
+      }
+      
+      print('[MealCache] ✓ Cache initialized from disk at ${_cacheTimestamp?.toLocal()}');
     } catch (e) {
       print('[MealCache] Error loading from disk: $e');
       _clearDisk();
@@ -61,15 +83,18 @@ class MealCacheService {
   /// Save cache to disk
   Future<void> _saveToDisk() async {
     try {
-      if (_cachedFoods != null && _cachedMealPlan != null && _cacheTimestamp != null) {
-        final foodsJson = jsonEncode(_cachedFoods!.map((f) => f.toJson()).toList());
-        final planJson = jsonEncode(_cachedMealPlan);
-        
-        await _prefs?.setString(_foodsCacheKey, foodsJson);
-        await _prefs?.setString(_planCacheKey, planJson);
+      if (_cacheTimestamp != null) {
         await _prefs?.setString(_timestampCacheKey, _cacheTimestamp!.toIso8601String());
-        print('[MealCache] Saved to disk');
       }
+      if (_cachedFoods != null) {
+        final foodsJson = jsonEncode(_cachedFoods!.map((f) => f.toJson()).toList());
+        await _prefs?.setString(_foodsCacheKey, foodsJson);
+      }
+      if (_cachedMealPlan != null) {
+        final planJson = jsonEncode(_cachedMealPlan);
+        await _prefs?.setString(_planCacheKey, planJson);
+      }
+      print('[MealCache] ✓ Saved to disk (foods: ${_cachedFoods != null}, plan: ${_cachedMealPlan != null})');
     } catch (e) {
       print('[MealCache] Error saving to disk: $e');
     }
@@ -81,7 +106,7 @@ class MealCacheService {
       await _prefs?.remove(_foodsCacheKey);
       await _prefs?.remove(_planCacheKey);
       await _prefs?.remove(_timestampCacheKey);
-      print('[MealCache] Cleared from disk');
+      print('[MealCache] ✓ Cleared from disk');
     } catch (e) {
       print('[MealCache] Error clearing disk: $e');
     }
@@ -129,16 +154,22 @@ class MealCacheService {
   void cacheFoods(List<FoodModel> foods) {
     _cachedFoods = foods;
     _cacheTimestamp = DateTime.now();
-    _saveToDisk();
-    print('[MealCache] Cached ${foods.length} foods at ${_cacheTimestamp!.toIso8601String()}');
+    // Fire and forget - save to disk in background
+    _saveToDisk().then((_) {
+      print('[MealCache] ✓ Saved ${foods.length} foods to disk (async)');
+    });
+    print('[MealCache] Loading ${foods.length} foods into memory');
   }
 
   /// Store meal plan in cache
   void cacheMealPlan(Map<String, dynamic> plan) {
     _cachedMealPlan = plan;
     _cacheTimestamp = DateTime.now();
-    _saveToDisk();
-    print('[MealCache] Cached meal plan at ${_cacheTimestamp!.toIso8601String()}');
+    // Fire and forget - save to disk in background
+    _saveToDisk().then((_) {
+      print('[MealCache] ✓ Saved meal plan to disk (async)');
+    });
+    print('[MealCache] Loading meal plan into memory');
   }
 
   /// Store both foods and meal plan together
@@ -146,8 +177,11 @@ class MealCacheService {
     _cachedFoods = foods;
     _cachedMealPlan = plan;
     _cacheTimestamp = DateTime.now();
-    _saveToDisk();
-    print('[MealCache] Cached all meal data (${foods.length} foods) at ${_cacheTimestamp!.toIso8601String()}');
+    // Fire and forget - save to disk in background
+    _saveToDisk().then((_) {
+      print('[MealCache] ✓ Saved all data to disk (async)');
+    });
+    print('[MealCache] Loading all data into memory (${foods.length} foods + plan)');
   }
 
   /// Invalidate cache (call after user actions or explicit refresh)
@@ -155,8 +189,11 @@ class MealCacheService {
     _cachedFoods = null;
     _cachedMealPlan = null;
     _cacheTimestamp = null;
-    _clearDisk();
-    print('[MealCache] Cache invalidated');
+    // Clear from disk in background
+    _clearDisk().then((_) {
+      print('[MealCache] ✓ Cleared from disk (async)');
+    });
+    print('[MealCache] Cache invalidated from memory');
   }
 
   /// Check if cache exists and is valid
@@ -176,7 +213,9 @@ class MealCacheService {
     _cachedFoods = null;
     _cachedMealPlan = null;
     _cacheTimestamp = null;
-    _clearDisk();
-    print('[MealCache] All cache cleared');
+    _clearDisk().then((_) {
+      print('[MealCache] ✓ All cache cleared from disk (async)');
+    });
+    print('[MealCache] All cache cleared from memory');
   }
 }

@@ -134,12 +134,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               }
               
               try {
-                print('[Profile] Calling API to update goal...');
-                final response = await ApiService.updateProfile(
-                  displayName: currentUser.name,
-                  goal: selectedGoal,
-                );
+                print('[Profile] Calling API to update fitness goal with recalculation...');
+                final response = await ApiService.updateFitnessGoal(goal: selectedGoal);
                 print('[Profile] API Response: ${response['statusCode']}');
+                print('[Profile] New calorie target: ${response['dailyCalorieTarget']}');
+                print('[Profile] New protein target: ${response['dailyProteinTarget']}');
                 
                 if (!context.mounted) {
                   print('[Profile] Context unmounted after API call');
@@ -159,8 +158,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 print('[Profile] Goal update successful, closing dialog');
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Goal updated to: $goalLabel'),
-                    duration: const Duration(seconds: 2),
+                    content: Text('Goal updated to: $goalLabel\nCalories: ${response['dailyCalorieTarget']} | Protein: ${response['dailyProteinTarget']}g'),
+                    duration: const Duration(seconds: 3),
                     backgroundColor: const Color(0xFF00C853),
                   ),
                 );

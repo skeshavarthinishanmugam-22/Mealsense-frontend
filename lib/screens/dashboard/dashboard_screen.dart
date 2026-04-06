@@ -6,7 +6,6 @@ import '../../services/api_service.dart';
 import '../../services/meal_cache_service.dart';
 import '../../services/nutrition_suggestion_service.dart';
 import '../../widgets/food_card.dart';
-import '../../widgets/ai_meal_navigation_widget.dart';
 import '../food/food_list_screen.dart';
 import '../activity/activity_screen.dart';
 import '../profile/profile_screen.dart';
@@ -200,23 +199,52 @@ class _HomeTabState extends State<_HomeTab> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Only load meal plan once after dependencies are available
+    // Defer meal plan loading to after build phase
     if (!_planLoaded) {
       _planLoaded = true;
-      _loadMealPlan();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        print('[Dashboard] Checking cache on startup...');
+        
+        // Check if cache exists first - don't load if it does
+        final cache = MealCacheService();
+        final cachedPlan = cache.getCachedMealPlan();
+        final cachedTime = cache.getCachedMealPlanTime();
+        
+        print('[Dashboard] Cache status: plan=${cachedPlan != null}, time=$cachedTime');
+        
+        if (cachedPlan != null && cachedTime != null) {
+          final now = DateTime.now();
+          final cachedDay = DateTime(cachedTime.year, cachedTime.month, cachedTime.day);
+          final today = DateTime(now.year, now.month, now.day);
+          
+          if (cachedDay == today) {
+            print('[Dashboard] ✓ CACHE HIT - Using valid cache from today');
+            if (mounted) {
+              setState(() {
+                _mealPlan = cachedPlan;
+                _planLoading = false;
+              });
+            }
+            return;
+          } else {
+            print('[Dashboard] Cache is from different day (${cachedDay.toLocal()} vs ${today.toLocal()})');
+          }
+        }
+        
+        print('[Dashboard] CACHE MISS - Will fetch from API');
+        _loadMealPlan();
+      });
     }
   }
 
   Future<void> _loadTodayFoods() async {
-    setState(() => _foodsLoading = true);
-    
     try {
       // Try to use cached data first
       final cache = MealCacheService();
       final cachedFoods = cache.getCachedFoods();
       
       if (cachedFoods != null) {
-        print('[Dashboard] Using cached foods');
+        print("[Dashboard] ✓ Using CACHED today's picks (${cachedFoods.length} foods)");
         if (mounted) {
           setState(() {
             _todayFoods = cachedFoods;
@@ -227,7 +255,7 @@ class _HomeTabState extends State<_HomeTab> {
       }
       
       // Fetch from API if cache is empty/invalid
-      print('[Dashboard] Cache miss, fetching from API');
+      print('[Dashboard] ✗ Cache miss - fetching today\'s picks from API');
       final raw = await ApiService.getAllFoodSuggestions(limit: 10);
       if (mounted) {
         final foods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
@@ -236,6 +264,7 @@ class _HomeTabState extends State<_HomeTab> {
           _todayFoods = foods;
           _foodsLoading = false;
         });
+        print('[Dashboard] ✓ Fetched and cached ${foods.length} foods');
       }
     } catch (e) {
       print('[Dashboard] Error loading foods: $e');
@@ -252,37 +281,34 @@ class _HomeTabState extends State<_HomeTab> {
       // Check cache first - if cached today, use it
       final cache = MealCacheService();
       final cachedPlan = cache.getCachedMealPlan();
-      if (cachedPlan != null) {
-        // Check if cache is from today
-        final cachedTime = cache.getCachedMealPlanTime();
-        if (cachedTime != null) {
-          final now = DateTime.now();
-          final cachedDay = DateTime(cachedTime.year, cachedTime.month, cachedTime.day);
-          final today = DateTime(now.year, now.month, now.day);
-          
-          if (cachedDay == today) {
-            print('[Dashboard] Using cached meal plan from today');
-            if (mounted) {
-              setState(() {
-                _mealPlan = cachedPlan;
-                _planLoading = false;
-              });
-            }
-            return;
+      final cachedTime = cache.getCachedMealPlanTime();
+      
+      if (cachedPlan != null && cachedTime != null) {
+        final now = DateTime.now();
+        final cachedDay = DateTime(cachedTime.year, cachedTime.month, cachedTime.day);
+        final today = DateTime(now.year, now.month, now.day);
+        
+        if (cachedDay == today) {
+          print('[Dashboard] ✓ Using CACHED meal plan from today (${cachedTime.hour}:${cachedTime.minute})');
+          if (mounted) {
+            setState(() {
+              _mealPlan = cachedPlan;
+              _planLoading = false;
+            });
           }
+          return;
         }
       }
-      print('[Dashboard] Cache miss or expired, fetching fresh meal plan');
       
-      // Get user targets for AI suggestions
+      print('[Dashboard] ✗ Cache miss/expired - using HARDCODED meals');
+      
+      // Get user targets
       final userProvider = UserProvider.of(context);
       final user = userProvider.user;
       
       if (user == null) {
-        print('[Dashboard] User profile not yet loaded. Will retry.');
-        if (mounted) {
-          setState(() => _planLoading = false);
-        }
+        print('[Dashboard] User profile not yet loaded');
+        if (mounted) setState(() => _planLoading = false);
         return;
       }
       
@@ -290,87 +316,170 @@ class _HomeTabState extends State<_HomeTab> {
       final dailyProtein = user.dailyProteinTarget ?? 0;
       
       if (dailyCalories == 0 || dailyProtein == 0) {
-        print('[Dashboard] No user targets set. Using default targets.');
-        // Use default targets if not set
-        if (mounted) {
-          setState(() => _planLoading = false);
-        }
+        print('[Dashboard] No targets - skipping meal plan');
+        if (mounted) setState(() => _planLoading = false);
         return;
       }
       
-      // Calculate per-meal targets
-      final mealTargets = NutritionSuggestionService.calculatePerMealTargets(
-        dailyCalories: dailyCalories,
-        dailyProtein: dailyProtein,
-      );
-      
-      print('[Dashboard] Per-meal targets calculated: $mealTargets');
-      
+      // HARDCODED MEALS - Replace with AI API later
       final transformedPlan = <String, dynamic>{
         'targetCalories': dailyCalories,
         'targetProtein': dailyProtein,
+        'breakfast': [
+          {
+            'id': 'meal_breakfast_1',
+            'name': 'Masala Dosa',
+            'calorieRangeLabel': '320 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 200,
+            'protein': 8.0,
+            'carbs': 52.0,
+            'fat': 8.0,
+            'fiber': 3.0,
+          },
+          {
+            'id': 'meal_breakfast_2',
+            'name': 'Poha with peanuts',
+            'calorieRangeLabel': '280 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 150,
+            'protein': 9.0,
+            'carbs': 48.0,
+            'fat': 5.0,
+            'fiber': 2.5,
+          },
+          {
+            'id': 'meal_breakfast_3',
+            'name': 'Idli with sambar',
+            'calorieRangeLabel': '200 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 180,
+            'protein': 7.0,
+            'carbs': 38.0,
+            'fat': 2.0,
+            'fiber': 2.0,
+          },
+        ],
+        'lunch': [
+          {
+            'id': 'meal_lunch_1',
+            'name': 'Chicken biryani',
+            'calorieRangeLabel': '450 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 250,
+            'protein': 28.0,
+            'carbs': 48.0,
+            'fat': 12.0,
+            'fiber': 1.5,
+          },
+          {
+            'id': 'meal_lunch_2',
+            'name': 'Dal makhani with roti',
+            'calorieRangeLabel': '380 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 280,
+            'protein': 15.0,
+            'carbs': 52.0,
+            'fat': 8.0,
+            'fiber': 4.0,
+          },
+          {
+            'id': 'meal_lunch_3',
+            'name': 'Fish curry with rice',
+            'calorieRangeLabel': '420 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 300,
+            'protein': 32.0,
+            'carbs': 45.0,
+            'fat': 7.0,
+            'fiber': 2.0,
+          },
+        ],
+        'dinner': [
+          {
+            'id': 'meal_dinner_1',
+            'name': 'Tandoori chicken',
+            'calorieRangeLabel': '280 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 200,
+            'protein': 38.0,
+            'carbs': 8.0,
+            'fat': 6.0,
+            'fiber': 0.5,
+          },
+          {
+            'id': 'meal_dinner_2',
+            'name': 'Paneer tikka',
+            'calorieRangeLabel': '250 cal',
+            'trafficLight': 'YELLOW',
+            'servingGrams': 180,
+            'protein': 20.0,
+            'carbs': 12.0,
+            'fat': 10.0,
+            'fiber': 1.0,
+          },
+          {
+            'id': 'meal_dinner_3',
+            'name': 'Vegetable stir fry',
+            'calorieRangeLabel': '180 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 250,
+            'protein': 6.0,
+            'carbs': 28.0,
+            'fat': 4.0,
+            'fiber': 5.0,
+          },
+        ],
+        'snacks': [
+          {
+            'id': 'meal_snack_1',
+            'name': 'Greek yogurt with berries',
+            'calorieRangeLabel': '120 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 150,
+            'protein': 15.0,
+            'carbs': 14.0,
+            'fat': 2.0,
+            'fiber': 2.0,
+          },
+          {
+            'id': 'meal_snack_2',
+            'name': 'Roasted chickpeas',
+            'calorieRangeLabel': '140 cal',
+            'trafficLight': 'GREEN',
+            'servingGrams': 30,
+            'protein': 6.0,
+            'carbs': 16.0,
+            'fat': 4.0,
+            'fiber': 3.5,
+          },
+          {
+            'id': 'meal_snack_3',
+            'name': 'Almonds & dates',
+            'calorieRangeLabel': '160 cal',
+            'trafficLight': 'YELLOW',
+            'servingGrams': 40,
+            'protein': 5.0,
+            'carbs': 18.0,
+            'fat': 8.0,
+            'fiber': 2.0,
+          },
+        ],
       };
       
-      // Get AI suggestions for each meal type
-      final mealCategories = ['breakfast', 'lunch', 'dinner', 'snacks'];
-      for (final mealType in mealCategories) {
-        final targets = mealTargets[mealType];
-        if (targets != null) {
-          try {
-            print('[Dashboard] Fetching AI suggestions for $mealType...');
-            
-            // Call AI API to get suggestions
-            final aiResponse = await ApiService.getAiSuggestions(
-              mealType: mealType,
-              targetCalories: targets['calories'] ?? 0,
-              targetProtein: targets['protein'] ?? 0,
-            );
-            
-            if (aiResponse['statusCode'] == 200) {
-              final suggestions = aiResponse['suggestions'] as List<dynamic>? ?? [];
-              
-              // Transform AI suggestions to meal item format
-              final mealItems = suggestions.map((food) {
-                final foodMap = food as Map<String, dynamic>;
-                return {
-                  'name': foodMap['name'] ?? 'Unknown',
-                  'foodName': foodMap['name'] ?? 'Unknown',
-                  'calorieRangeLabel': '${foodMap['calories']?.toInt() ?? 0} cal',
-                  'trafficLight': 'GREEN',
-                  'servingGrams': foodMap['servingGrams'] ?? 100,
-                  'protein': foodMap['protein'] ?? 0,
-                  'carbs': foodMap['carbs'] ?? 0,
-                  'fat': foodMap['fat'] ?? 0,
-                };
-              }).toList();
-              
-              transformedPlan[mealType] = mealItems;
-              print('[Dashboard] Got ${mealItems.length} AI suggestions for $mealType');
-            } else {
-              print('[Dashboard] AI API returned ${aiResponse['statusCode']} for $mealType');
-              transformedPlan[mealType] = [];
-            }
-          } catch (e) {
-            print('[Dashboard] Error fetching AI suggestions for $mealType: $e');
-            transformedPlan[mealType] = [];
-          }
-        }
-      }
+      print('[Dashboard] ✓ Hardcoded meals loaded: 3 breakfast + 3 lunch + 3 dinner + 3 snacks');
       
       if (mounted) {
-        final cache = MealCacheService();
         cache.cacheMealPlan(transformedPlan);
         setState(() { 
           _mealPlan = transformedPlan; 
-          _planLoading = false; 
-          print('[Dashboard] Meal plan loaded with AI suggestions: ${_mealPlan.keys.toList()}');
+          _planLoading = false;
         });
+        print('[Dashboard] ✓ Meal plan SAVED to cache');
       }
     } catch (e) {
-      print('[Dashboard] Error loading meal plan: $e');
-      if (mounted) {
-        setState(() => _planLoading = false);
-      }
+      print('[Dashboard] Error: $e');
+      if (mounted) setState(() => _planLoading = false);
     }
   }
 
@@ -382,64 +491,155 @@ class _HomeTabState extends State<_HomeTab> {
 
     return SafeArea(
       bottom: false,
-      child: CustomScrollView(
+      child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(child: _Header(greeting: '$greeting $greetEmoji')),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                // ── Nutrition Targets ──
-                _NutritionTargetsCard(),
-                const SizedBox(height: 20),
-
-                // ── Today's Suggestions ──
-                _SectionTitle(
-                  title: "Today's Picks",
-                  subtitle: 'Suggested for you',
-                  onSeeAll: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const FoodListScreen(asRoute: true)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ──
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$greeting $greetEmoji',
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
                   ),
-                ),
-                const SizedBox(height: 14),
-                SizedBox(
-                  height: 185,
-                  child: _foodsLoading
-                      ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)))
-                      : _todayFoods.isEmpty
-                          ? const Center(child: Text('No suggestions available'))
-                          : ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              physics: const BouncingScrollPhysics(),
-                              itemCount: _todayFoods.length,
-                              separatorBuilder: (_, _) => const SizedBox(width: 14),
-                              itemBuilder: (_, i) => FoodCard(food: _todayFoods[i]),
-                            ),
-                ),
-                const SizedBox(height: 24),
-
-                // ── Daily Meal Plan ──
-                if (_planLoading)
-                  const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)))
-                else if (_mealPlan.isNotEmpty) ...[
-                  const _SectionTitle(title: 'Daily Meal Plan', subtitle: 'Personalised for your goal'),
-                  const SizedBox(height: 14),
-                  _MealPlanCard(plan: _mealPlan),
-                ] else
-                  const Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(child: Text('No meal plan available')),
+                  Text(
+                    'Track your nutrition journey',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   ),
-                
-                // ── AI Meal Management ──
-                const SizedBox(height: 24),
-                const AiMealNavigationWidget(),
-              ]),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+
+            // ── Nutrition Targets ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _NutritionTargetsCard(),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Today's Suggestions ──
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text("Today's Picks",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text('Suggested for you',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    ],
+                  ),
+                  GestureDetector(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const FoodListScreen(asRoute: true)),
+                    ),
+                    child: Text('See all',
+                        style: TextStyle(fontSize: 12, color: const Color(0xFF00C853), fontWeight: FontWeight.w600)),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 185,
+              child: _foodsLoading
+                  ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)))
+                  : _todayFoods.isEmpty
+                      ? const Center(child: Text('No suggestions available'))
+                      : ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          itemCount: _todayFoods.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 14),
+                          itemBuilder: (_, i) => FoodCard(food: _todayFoods[i]),
+                        ),
+            ),
+            const SizedBox(height: 24),
+
+            // ── Daily Meal Plan or Available Foods ──
+            if (_mealPlan.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Text('Daily Meal Plan',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        SizedBox(height: 4),
+                        Text('Personalised for your goal',
+                            style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      ],
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() => _planLoading = true);
+                        MealCacheService().invalidateCache();
+                        _loadMealPlan();
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade200,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.refresh_rounded, size: 18, color: Color(0xFF00C853)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              _MealPlanCard(
+                plan: _mealPlan,
+                onRemoveMeal: (mealType, index) {
+                  setState(() {
+                    final items = _mealPlan[mealType] as List<dynamic>? ?? [];
+                    if (index >= 0 && index < items.length) {
+                      items.removeAt(index);
+                      print('[Dashboard] Removed meal at index $index from $mealType');
+                    }
+                  });
+                },
+              ),
+            ] else if (!_planLoading && _todayFoods.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text('Available Meals',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 220,
+                child: GridView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.85,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: _todayFoods.length,
+                  itemBuilder: (_, i) => FoodCard(food: _todayFoods[i]),
+                ),
+              ),
+            ],
+            const SizedBox(height: 120), // Bottom padding for nav bar
+          ],
+        ),
       ),
     );
   }
@@ -723,7 +923,8 @@ class _SectionTitle extends StatelessWidget {
 
 class _MealPlanCard extends StatelessWidget {
   final Map<String, dynamic> plan;
-  const _MealPlanCard({required this.plan});
+  final Function(String mealType, int index)? onRemoveMeal;
+  const _MealPlanCard({required this.plan, this.onRemoveMeal});
 
   static const _slots = [
     ('🌅', 'Breakfast', 'breakfast'),
@@ -786,9 +987,15 @@ class _MealPlanCard extends StatelessWidget {
           ..._slots.map((slot) {
             final items = plan[slot.$3] as List<dynamic>?;
             if (items == null || items.isEmpty) {
-              return _MealSlot(emoji: slot.$1, label: slot.$2, items: []);
+              return _MealSlot(emoji: slot.$1, label: slot.$2, items: [], mealType: slot.$3);
             }
-            return _MealSlot(emoji: slot.$1, label: slot.$2, items: items);
+            return _MealSlot(
+              emoji: slot.$1,
+              label: slot.$2,
+              items: items,
+              mealType: slot.$3,
+              onRemoveMeal: onRemoveMeal,
+            );
           }),
         ],
       ),
@@ -811,51 +1018,120 @@ class _PlanStat extends StatelessWidget {
 }
 
 class _MealSlot extends StatefulWidget {
-  final String emoji, label;
+  final String emoji, label, mealType;
   final List<dynamic> items;
-  const _MealSlot({required this.emoji, required this.label, required this.items});
+  final Function(String mealType, int index)? onRemoveMeal;
+  const _MealSlot({
+    required this.emoji,
+    required this.label,
+    required this.items,
+    required this.mealType,
+    this.onRemoveMeal,
+  });
 
   @override
   State<_MealSlot> createState() => _MealSlotState();
 }
 
 class _MealSlotState extends State<_MealSlot> {
-  final Set<int> _loggingIndices = {}; // Track which items are logging
+  final Set<int> _actionIndices = {}; // Track which items are in action
 
-  Future<void> _logMealAte(Map<String, dynamic> food, int index) async {
-    setState(() => _loggingIndices.add(index));
+  /// Get current index of food item in widget items list
+  int _getCurrentIndex(Map<String, dynamic> food) {
+    for (int i = 0; i < widget.items.length; i++) {
+      final item = widget.items[i] as Map<String, dynamic>;
+      if (item['id'] == food['id']) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  /// Parse calories from calorieRangeLabel (e.g., "320 cal" -> 320)
+  int _parseCalories(String? label) {
+    if (label == null) return 0;
+    final match = RegExp(r'(\d+)').firstMatch(label);
+    return match != null ? int.parse(match.group(1)!) : 0;
+  }
+
+  Future<void> _handleAction(Map<String, dynamic> food, int index, String action) async {
+    setState(() => _actionIndices.add(index));
     
     try {
-      // Extract meal type from widget label
-      String mealCategory = widget.label.toUpperCase();
+      print('[Dashboard] Handling $action for ${food['name']}');
       
-      // Register meal via API
-      final response = await ApiService.registerMeal(
-        mealName: food['name'] as String? ?? 'Unknown',
-        mealCategory: mealCategory,
-        calories: (food['servingGrams'] as num? ?? 100).toInt(), // Use serving grams as proxy for calories
-        proteinGrams: (food['protein'] as num?)?.toDouble() ?? 0.0,
-        carbsGrams: (food['carbs'] as num?)?.toDouble() ?? 0.0,
-        fatGrams: (food['fat'] as num?)?.toDouble() ?? 0.0,
-      );
+      String? foodId = food['id'] as String?;
+      if (foodId == null) {
+        throw Exception('Food ID not found');
+      }
       
-      if (response['statusCode'] == 201) {
-        print('[Dashboard] Meal logged: ${food['name']} at $mealCategory');
+      if (action == 'ate') {
+        // Log as eaten - register meal to MealLog table
+        final name = food['name'] as String? ?? 'Meal';
+        final category = widget.label.toUpperCase();
+        final calories = _parseCalories(food['calorieRangeLabel'] as String?);
+        final protein = (food['protein'] as num?)?.toDouble() ?? 0.0;
+        final carbs = (food['carbs'] as num?)?.toDouble() ?? 0.0;
+        final fat = (food['fat'] as num?)?.toDouble() ?? 0.0;
+        final fiber = (food['fiber'] as num?)?.toDouble() ?? 0.0;
+        
+        await ApiService.registerMeal(
+          mealName: name,
+          mealCategory: category,
+          calories: calories,
+          proteinGrams: protein,
+          carbsGrams: carbs,
+          fatGrams: fat,
+          fiberGrams: fiber,
+        );
+        print('[Dashboard] Logged as eaten to MealLog: $name');
         
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('✓ ${food['name']} logged to $mealCategory'),
-              duration: const Duration(seconds: 2),
+              content: Text('✓ $name logged to activity'),
+              duration: const Duration(seconds: 1),
               backgroundColor: const Color(0xFF00C853),
             ),
           );
         }
-      } else {
-        throw Exception(response['error'] ?? 'Failed to log meal');
+      } else if (action == 'notToday') {
+        // Skip for today
+        await ApiService.logMealSkip(foodId);
+        print('[Dashboard] Skipped for today: ${food['name']}');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('⏭️ ${food['name']} hidden for today'),
+              duration: const Duration(seconds: 1),
+              backgroundColor: const Color(0xFFFF9800),
+            ),
+          );
+        }
+      } else if (action == 'dontLike') {
+        // Mark as dislike
+        await ApiService.rateFood(foodId, 'DISLIKE');
+        print('[Dashboard] Marked as dislike: ${food['name']}');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('👎 ${food['name']} noted, we\'ll avoid it'),
+              duration: const Duration(seconds: 1),
+              backgroundColor: const Color(0xFFE53935),
+            ),
+          );
+        }
       }
+      
+      // Remove meal from daily plan after successful action
+      widget.onRemoveMeal?.call(widget.mealType, _getCurrentIndex(food));
+      
+      // Don't invalidate cache automatically - let user click Refresh button to fetch new suggestions
+      print('[Dashboard] Meal action logged, cache remains valid. Click Refresh to get new suggestions.');
     } catch (e) {
-      print('[Dashboard] Error logging meal: $e');
+      print('[Dashboard] Error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -866,7 +1142,7 @@ class _MealSlotState extends State<_MealSlot> {
       }
     } finally {
       if (mounted) {
-        setState(() => _loggingIndices.remove(index));
+        setState(() => _actionIndices.remove(index));
       }
     }
   }
@@ -913,7 +1189,6 @@ class _MealSlotState extends State<_MealSlot> {
               final name = food['name'] as String? ?? '';
               final cal = food['calorieRangeLabel'] as String?;
               final traffic = food['trafficLight'] as String? ?? 'GREEN';
-              final isLogging = _loggingIndices.contains(index);
               final trafficColor = switch (traffic) {
                 'GREEN'  => const Color(0xFF00C853),
                 'YELLOW' => const Color(0xFFFFB300),
@@ -927,53 +1202,119 @@ class _MealSlotState extends State<_MealSlot> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.grey.shade100),
                 ),
-                child: Row(children: [
-                  Container(
-                    width: 8, height: 8,
-                    decoration: BoxDecoration(
-                        color: trafficColor, shape: BoxShape.circle),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(name,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w500)),
-                  ),
-                  if (cal != null)
-                    Text(cal,
-                        style: const TextStyle(
-                            color: Color(0xFF00C853),
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold)),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    height: 28,
-                    child: ElevatedButton(
-                      onPressed: isLogging ? null : () => _logMealAte(food, index),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C853),
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey.shade300,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-                        elevation: 0,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Container(
+                        width: 8, height: 8,
+                        decoration: BoxDecoration(
+                            color: trafficColor, shape: BoxShape.circle),
                       ),
-                      child: isLogging
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(name,
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w500)),
+                      ),
+                      if (cal != null)
+                        Text(cal,
+                            style: const TextStyle(
+                                color: Color(0xFF00C853),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                    ]),
+                    const SizedBox(height: 8),
+                    // Action buttons row
+                    Row(
+                      children: [
+                        // Ate button
+                        Expanded(
+                          child: SizedBox(
+                            height: 28,
+                            child: ElevatedButton(
+                              onPressed: _actionIndices.contains(index) ? null : () => _handleAction(food, index, 'ate'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF00C853),
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.grey.shade300,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                elevation: 0,
                               ),
-                            )
-                          : const Text(
-                              'Ate',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                              child: _actionIndices.contains(index)
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                                      ),
+                                    )
+                                  : const Text('Ate 🍽️', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
                             ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Not Today button
+                        Expanded(
+                          child: SizedBox(
+                            height: 28,
+                            child: ElevatedButton(
+                              onPressed: _actionIndices.contains(index) ? null : () => _handleAction(food, index, 'notToday'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF9800),
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.grey.shade300,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                elevation: 0,
+                              ),
+                              child: _actionIndices.contains(index)
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                                      ),
+                                    )
+                                  : const Text('Not Today', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // Don't Like button
+                        Expanded(
+                          child: SizedBox(
+                            height: 28,
+                            child: ElevatedButton(
+                              onPressed: _actionIndices.contains(index) ? null : () => _handleAction(food, index, 'dontLike'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFE53935),
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: Colors.grey.shade300,
+                                padding: const EdgeInsets.symmetric(horizontal: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                elevation: 0,
+                              ),
+                              child: _actionIndices.contains(index)
+                                  ? const SizedBox(
+                                      width: 14,
+                                      height: 14,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                                      ),
+                                    )
+                                  : const Text('👎', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ]),
+                  ],
+                ),
               );
             }),
         ],

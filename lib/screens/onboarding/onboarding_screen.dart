@@ -19,10 +19,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   String? _gender;
   String? _goal;
   String? _activity;
+  String? _dietaryPreference;
   final List<String> _allergies = [];
 
-  // 4 steps matching exactly what backend needs
-  final _steps = ['Body Metrics', 'Fitness Goal', 'Activity Level', 'Allergies'];
+  // 5 steps matching backend needs
+  final _steps = ['Body Metrics', 'Fitness Goal', 'Activity Level', 'Allergies', 'Dietary Preference'];
 
   @override
   void dispose() {
@@ -54,6 +55,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return true;
       case 2:
         if (_activity == null) { _showError('Please select your activity level'); return false; }
+        return true;
+      case 3:
+        return true; // Allergies is optional
+      case 4:
+        if (_dietaryPreference == null) { _showError('Please select your dietary preference'); return false; }
         return true;
       default:
         return true;
@@ -94,6 +100,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'Very Active' => 'VERY_ACTIVE',
       _            => 'MODERATE',
     };
+    final backendDietaryPreference = switch (_dietaryPreference!) {
+      'Vegetarian'      => 'VEGETARIAN',
+      'Pescatarian'     => 'NON_VEGETARIAN', // Map to NON_VEGETARIAN to allow fish
+      'Non-Vegetarian'  => 'NON_VEGETARIAN',
+      'Vegan'           => 'VEGAN',
+      _                 => 'NON_VEGETARIAN',
+    };
 
     final error = await UserProvider.of(context).completeOnboarding(
       age: int.parse(_ageCtrl.text.trim()),
@@ -102,6 +115,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       gender: backendGender,
       goal: backendGoal,
       activityLevel: backendActivity,
+      dietaryPreference: backendDietaryPreference,
       allergies: List<String>.from(_allergies)..remove('None'),
     );
 
@@ -215,6 +229,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       case 3: return _StepAllergies(
           selected: _allergies,
           onToggle: () => setState(() {}),
+        );
+      case 4: return _StepDietaryPreference(
+          selected: _dietaryPreference,
+          onSelect: (v) => setState(() => _dietaryPreference = v),
         );
       default: return const SizedBox();
     }
@@ -468,6 +486,74 @@ class _StepAllergies extends StatelessWidget {
           }).toList(),
         ),
       ],
+    );
+  }
+}
+
+// ── Step 5: Dietary Preference ────────────────────────────────────────────────────
+
+class _StepDietaryPreference extends StatelessWidget {
+  final String? selected;
+  final ValueChanged<String> onSelect;
+
+  const _StepDietaryPreference({required this.selected, required this.onSelect});
+
+  static const _options = [
+    ('🥗', 'Vegetarian', 'No meat, poultry, or fish'),
+    ('🐟', 'Pescatarian', 'No meat or poultry'),
+    ('🍗', 'Non-Vegetarian', 'All foods'),
+    ('🥛', 'Vegan', 'No animal products'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Dietary Preference',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text('Select your preference to personalize meal suggestions',
+              style: TextStyle(color: Colors.grey, fontSize: 14)),
+          const SizedBox(height: 24),
+          ..._options.map((opt) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: GestureDetector(
+              onTap: () => onSelect(opt.$2),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: selected == opt.$2 ? const Color(0xFF00C853).withOpacity(0.1) : Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected == opt.$2 ? const Color(0xFF00C853) : Colors.grey.shade300,
+                    width: selected == opt.$2 ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Text(opt.$1, style: const TextStyle(fontSize: 28)),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(opt.$2, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                          Text(opt.$3, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    if (selected == opt.$2)
+                      const Icon(Icons.check_circle, color: Color(0xFF00C853)),
+                  ],
+                ),
+              ),
+            ),
+          )),
+        ],
+      ),
     );
   }
 }

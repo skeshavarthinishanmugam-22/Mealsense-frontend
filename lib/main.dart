@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'config/app_config.dart';
 import 'providers/user_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
@@ -11,10 +10,18 @@ import 'services/meal_cache_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  print('[App] Initializing...');
+  
   // Initialize session manager to load saved token
   await SessionManager().initialize();
+  print('[App] ✓ Session initialized');
+  
   // Initialize meal cache service to load persisted cache from disk
-  await MealCacheService().initialize();
+  final cacheService = MealCacheService();
+  await cacheService.initialize();
+  print('[App] ✓ Meal cache initialized from disk');
+  print('[App] Cache has data: foods=${cacheService.getCachedFoods() != null}, plan=${cacheService.getCachedMealPlan() != null}');
+  
   runApp(const MealSenseApp());
 }
 

@@ -16,8 +16,8 @@ class AiSuggestionsScreen extends StatefulWidget {
 class _AiSuggestionsScreenState extends State<AiSuggestionsScreen> {
   late Future<Map<String, dynamic>> _suggestionsFuture;
   String _selectedMealType = 'breakfast';
-  int _targetCalories = 430;
-  int _targetProtein = 35;
+  final int _targetCalories = 430;
+  final int _targetProtein = 35;
 
   @override
   void initState() {
@@ -268,7 +268,7 @@ class _AddMealDialogState extends State<AddMealDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
               items: ['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK']
                   .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                   .toList(),
