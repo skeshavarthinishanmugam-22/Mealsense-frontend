@@ -43,13 +43,6 @@ class _MealHistoryScreenState extends State<MealHistoryScreen> {
     }
   }
 
-  void _deleteLog(String logId) async {
-    // Implement delete if needed
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Meal log deleted')),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(

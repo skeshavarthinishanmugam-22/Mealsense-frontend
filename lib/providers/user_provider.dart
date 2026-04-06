@@ -323,9 +323,13 @@ class UserNotifier extends ChangeNotifier {
         _profileCached = true; // Mark profile as cached
         print('[UserProvider] Profile cached for session');
         notifyListeners();
+      } else {
+        print('[UserProvider] Profile fetch failed with status: ${res['statusCode']}');
+        throw Exception('Failed to load profile: ${res['message'] ?? 'Unknown error'}');
       }
     } catch (e) {
       print('[UserProvider] Error loading profile: $e');
+      rethrow; // Rethrow so caller knows about the failure
     }
   }
 

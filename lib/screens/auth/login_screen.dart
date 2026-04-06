@@ -149,9 +149,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
           child: SafeArea(
             child: SingleChildScrollView(
               physics: const ClampingScrollPhysics(),
-              child: SizedBox(
-                height: size.height - MediaQuery.of(context).padding.top,
-                child: Column(
+              child: Column(
                   children: [
                     // ── Logo ──────────────────────────────────────────────
                     Expanded(
@@ -380,7 +378,6 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                     ),
                   ],
                 ),
-              ),
             ),
           ),
         ),

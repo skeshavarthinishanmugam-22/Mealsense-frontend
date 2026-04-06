@@ -63,6 +63,28 @@ class FoodModel {
         substitutes: json['substitutes'] as String?,
       );
 
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'category': category,
+        'subCategory': subCategory,
+        'portionDescription': portionDescription,
+        'calorieRangeMin': calorieRangeMin,
+        'calorieRangeMax': calorieRangeMax,
+        'calorieRangeLabel': calorieRangeLabel,
+        'proteinLevel': proteinLevel,
+        'healthScore': healthScore,
+        'trafficLight': trafficLight,
+        'trafficLightMessage': trafficLightMessage,
+        'isVegetarian': isVegetarian,
+        'isVegan': isVegan,
+        'containsGluten': containsGluten,
+        'containsDairy': containsDairy,
+        'containsNuts': containsNuts,
+        'containsEggs': containsEggs,
+        'substitutes': substitutes,
+      };
+
   String get emoji {
     switch (category) {
       case 'BREAKFAST': return '🍳';

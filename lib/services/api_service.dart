@@ -5,7 +5,7 @@ import 'session_manager.dart';
 
 class ApiService {
   static String get baseUrl =>
-      'http://${AppConfig.host}:${AppConfig.port}/api/v1';
+      'http://${AppConfig.defaultHost}:${AppConfig.port}/api/v1';
 
   // ── Token helpers ──────────────────────────────────────────────────────────
 

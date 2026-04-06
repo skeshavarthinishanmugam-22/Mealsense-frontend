@@ -72,7 +72,7 @@ class NutritionSuggestionService {
     String mealType,
   ) {
     return foods.where((food) {
-      final category = food.category?.toLowerCase() ?? '';
+      final category = food.category.toLowerCase();
       final mealTypeLower = mealType.toLowerCase();
       
       // Direct category match
@@ -84,24 +84,24 @@ class NutritionSuggestionService {
           return category.contains('breakfast') || 
                  category.contains('morning') ||
                  ['porridge', 'cereal', 'oats', 'eggs', 'toast'].any(
-                   (item) => food.name?.toLowerCase().contains(item) ?? false
+                   (item) => food.name.toLowerCase().contains(item)
                  );
         case 'lunch':
           return category.contains('lunch') || 
                  category.contains('main') ||
                  ['rice', 'curry', 'salad', 'dal'].any(
-                   (item) => food.name?.toLowerCase().contains(item) ?? false
+                   (item) => food.name.toLowerCase().contains(item)
                  );
         case 'dinner':
           return category.contains('dinner') || 
                  category.contains('main') ||
                  ['rice', 'curry', 'dal', 'soup'].any(
-                   (item) => food.name?.toLowerCase().contains(item) ?? false
+                   (item) => food.name.toLowerCase().contains(item)
                  );
         case 'snack':
           return category.contains('snack') || 
                  ['snack', 'fruit', 'nuts', 'chips', 'bar'].any(
-                   (item) => food.name?.toLowerCase().contains(item) ?? false
+                   (item) => food.name.toLowerCase().contains(item)
                  );
         default:
           return true; // Include all if no specific match
@@ -116,8 +116,6 @@ class NutritionSuggestionService {
     int mealsPerDay = 3,
     int snacksPerDay = 1,
   }) {
-    final totalMeals = mealsPerDay + snacksPerDay;
-    
     // Main meals get 30% of daily intake, snacks get 10%
     final mainMealCalories = (dailyCalories * 0.3).toInt();
     final snackCalories = (dailyCalories * 0.1).toInt();

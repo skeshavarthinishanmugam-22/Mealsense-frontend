@@ -69,9 +69,7 @@ class _DashboardScreenState extends State<DashboardScreen>
       statusBarIconBrightness: Brightness.light,
     ));
     return Scaffold(
-      extendBody: true,
       backgroundColor: const Color(0xFFF0F4F8),
-      // FoodListScreen has its own Scaffold, others need SafeArea wrapping
       body: FadeTransition(opacity: _fadeAnimation, child: _tabs[_selectedIndex]),
       bottomNavigationBar: _FloatingNavBar(
         selectedIndex: _selectedIndex,
@@ -97,67 +95,81 @@ class _FloatingNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
-        borderRadius: BorderRadius.circular(32),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF1A1A2E).withValues(alpha: 0.5),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(_items.length, (i) {
-          final item = _items[i];
-          final isSelected = i == selectedIndex;
-          return GestureDetector(
-            onTap: () => onTap(i),
-            behavior: HitTestBehavior.opaque,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeInOut,
-              padding: EdgeInsets.symmetric(
-                horizontal: isSelected ? 18 : 12,
-                vertical: 10,
-              ),
-              decoration: BoxDecoration(
-                gradient: isSelected
-                    ? const LinearGradient(
-                        colors: [Color(0xFF00C853), Color(0xFF00897B)],
-                      )
-                    : null,
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    isSelected ? item.$1 : item.$2,
-                    color: isSelected ? Colors.white : Colors.grey.shade500,
-                    size: 22,
-                  ),
-                  if (isSelected) ...[
-                    const SizedBox(width: 7),
-                    Text(
-                      item.$3,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                        letterSpacing: 0.3,
-                      ),
+    return SizedBox(
+      height: 80,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A1A2E),
+          borderRadius: BorderRadius.circular(32),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF1A1A2E).withValues(alpha: 0.5),
+              blurRadius: 28,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisSize: MainAxisSize.max,
+          children: List.generate(_items.length, (i) {
+            final item = _items[i];
+            final isSelected = i == selectedIndex;
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => onTap(i),
+                behavior: HitTestBehavior.opaque,
+                child: Center(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isSelected ? 14 : 10,
+                      vertical: 10,
                     ),
-                  ],
-                ],
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? const LinearGradient(
+                              colors: [Color(0xFF00C853), Color(0xFF00897B)],
+                            )
+                          : null,
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isSelected ? item.$1 : item.$2,
+                            color: isSelected ? Colors.white : Colors.grey.shade500,
+                            size: 22,
+                          ),
+                          if (isSelected) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            item.$3,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              letterSpacing: 0.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           );
         }),
+      ),
       ),
     );
   }
@@ -177,12 +189,22 @@ class _HomeTabState extends State<_HomeTab> {
   bool _foodsLoading = true;
   Map<String, dynamic> _mealPlan = {};
   bool _planLoading = true;
+  bool _planLoaded = false;
 
   @override
   void initState() {
     super.initState();
     _loadTodayFoods();
-    _loadMealPlan();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Only load meal plan once after dependencies are available
+    if (!_planLoaded) {
+      _planLoaded = true;
+      _loadMealPlan();
+    }
   }
 
   Future<void> _loadTodayFoods() async {
@@ -227,13 +249,49 @@ class _HomeTabState extends State<_HomeTab> {
     try {
       print('[Dashboard] Loading meal plan...');
       
+      // Check cache first - if cached today, use it
+      final cache = MealCacheService();
+      final cachedPlan = cache.getCachedMealPlan();
+      if (cachedPlan != null) {
+        // Check if cache is from today
+        final cachedTime = cache.getCachedMealPlanTime();
+        if (cachedTime != null) {
+          final now = DateTime.now();
+          final cachedDay = DateTime(cachedTime.year, cachedTime.month, cachedTime.day);
+          final today = DateTime(now.year, now.month, now.day);
+          
+          if (cachedDay == today) {
+            print('[Dashboard] Using cached meal plan from today');
+            if (mounted) {
+              setState(() {
+                _mealPlan = cachedPlan;
+                _planLoading = false;
+              });
+            }
+            return;
+          }
+        }
+      }
+      print('[Dashboard] Cache miss or expired, fetching fresh meal plan');
+      
       // Get user targets for AI suggestions
-      final user = UserProvider.of(context).user;
-      final dailyCalories = user?.dailyCalorieTarget ?? 0;
-      final dailyProtein = user?.dailyProteinTarget ?? 0;
+      final userProvider = UserProvider.of(context);
+      final user = userProvider.user;
+      
+      if (user == null) {
+        print('[Dashboard] User profile not yet loaded. Will retry.');
+        if (mounted) {
+          setState(() => _planLoading = false);
+        }
+        return;
+      }
+      
+      final dailyCalories = user.dailyCalorieTarget ?? 0;
+      final dailyProtein = user.dailyProteinTarget ?? 0;
       
       if (dailyCalories == 0 || dailyProtein == 0) {
-        print('[Dashboard] No user targets, cannot generate meal plan');
+        print('[Dashboard] No user targets set. Using default targets.');
+        // Use default targets if not set
         if (mounted) {
           setState(() => _planLoading = false);
         }
@@ -316,81 +374,73 @@ class _HomeTabState extends State<_HomeTab> {
     }
   }
 
-  /// Transform API response (with 'meals' array) to UI format (with category keys)
-  /// DEPRECATED: Now using direct AI suggestions instead
-  @deprecated
-  Map<String, dynamic> _transformMealPlan(Map<String, dynamic> rawPlan) {
-    final transformed = <String, dynamic>{
-      'targetCalories': rawPlan['dailyCalorieTarget'] as int?,
-      'targetProtein': rawPlan['dailyProteinTarget'] as int?,
-    };
-    return transformed;
-  }
-
   @override
   Widget build(BuildContext context) {
     final hour = DateTime.now().hour;
     final greeting = hour < 12 ? 'Good Morning' : hour < 17 ? 'Good Afternoon' : 'Good Evening';
     final greetEmoji = hour < 12 ? '☀️' : hour < 17 ? '🌤️' : '🌙';
 
-    return CustomScrollView(
-      physics: const BouncingScrollPhysics(),
-      slivers: [
-        SliverToBoxAdapter(child: _Header(greeting: '$greeting $greetEmoji')),
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              // ── Nutrition Targets ──
-              _NutritionTargetsCard(),
-              const SizedBox(height: 20),
+    return SafeArea(
+      bottom: false,
+      child: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(child: _Header(greeting: '$greeting $greetEmoji')),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                // ── Nutrition Targets ──
+                _NutritionTargetsCard(),
+                const SizedBox(height: 20),
 
-              // ── Today's Suggestions ──
-              _SectionTitle(
-                title: "Today's Picks",
-                subtitle: 'Suggested for you',
-                onSeeAll: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FoodListScreen(asRoute: true)),
+                // ── Today's Suggestions ──
+                _SectionTitle(
+                  title: "Today's Picks",
+                  subtitle: 'Suggested for you',
+                  onSeeAll: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const FoodListScreen(asRoute: true)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              SizedBox(
-                height: 185,
-                child: _foodsLoading
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)))
-                    : _todayFoods.isEmpty
-                        ? const Center(child: Text('No suggestions available'))
-                        : ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            physics: const BouncingScrollPhysics(),
-                            itemCount: _todayFoods.length,
-                            separatorBuilder: (_, _) => const SizedBox(width: 14),
-                            itemBuilder: (_, i) => FoodCard(food: _todayFoods[i]),
-                          ),
-              ),
-              const SizedBox(height: 24),
-
-              // ── Daily Meal Plan ──
-              if (_planLoading)
-                const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)))
-              else if (_mealPlan.isNotEmpty) ...[
-                const _SectionTitle(title: 'Daily Meal Plan', subtitle: 'Personalised for your goal'),
                 const SizedBox(height: 14),
-                _MealPlanCard(plan: _mealPlan),
-              ] else
-                const Padding(
-                  padding: EdgeInsets.all(20),
-                  child: Center(child: Text('No meal plan available')),
+                SizedBox(
+                  height: 185,
+                  child: _foodsLoading
+                      ? const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)))
+                      : _todayFoods.isEmpty
+                          ? const Center(child: Text('No suggestions available'))
+                          : ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: _todayFoods.length,
+                              separatorBuilder: (_, _) => const SizedBox(width: 14),
+                              itemBuilder: (_, i) => FoodCard(food: _todayFoods[i]),
+                            ),
                 ),
-              
-              // ── AI Meal Management ──
-              const SizedBox(height: 24),
-              const AiMealNavigationWidget(),
-            ]),
+                const SizedBox(height: 24),
+
+                // ── Daily Meal Plan ──
+                if (_planLoading)
+                  const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)))
+                else if (_mealPlan.isNotEmpty) ...[
+                  const _SectionTitle(title: 'Daily Meal Plan', subtitle: 'Personalised for your goal'),
+                  const SizedBox(height: 14),
+                  _MealPlanCard(plan: _mealPlan),
+                ] else
+                  const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(child: Text('No meal plan available')),
+                  ),
+                
+                // ── AI Meal Management ──
+                const SizedBox(height: 24),
+                const AiMealNavigationWidget(),
+              ]),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -1,4 +1,4 @@
 class AppConfig {
-  static const String host = '10.10.49.57'; // change only this when IP changes
+  static const String defaultHost = '10.11.154.66';
   static const int port = 8080;
 }
