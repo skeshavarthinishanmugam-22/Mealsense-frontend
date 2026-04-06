@@ -4,6 +4,7 @@ import '../../providers/user_provider.dart';
 import '../../models/food_model.dart';
 import '../../services/api_service.dart';
 import '../../services/meal_cache_service.dart';
+import '../../services/nutrition_suggestion_service.dart';
 import '../../widgets/food_card.dart';
 import '../../widgets/ai_meal_navigation_widget.dart';
 import '../food/food_list_screen.dart';
@@ -226,8 +227,10 @@ class _HomeTabState extends State<_HomeTab> {
     try {
       print('[Dashboard] Loading meal plan...');
       
-      // For now, skip cache and always fetch fresh
-      // TODO: Implement smart caching (e.g., cache for 1 hour)
+      // Get user targets for auto-suggestions
+      final user = UserProvider.of(context).user;
+      final dailyCalories = user?.dailyCalorieTarget ?? 0;
+      final dailyProtein = user?.dailyProteinTarget ?? 0;
       
       // Fetch from API
       print('[Dashboard] Fetching meal plan from API');
@@ -236,7 +239,72 @@ class _HomeTabState extends State<_HomeTab> {
       print('[Dashboard] Raw API response keys: ${rawPlan.keys.toList()}');
       
       // Transform API response to match UI expectations
-      final transformedPlan = _transformMealPlan(rawPlan);
+      var transformedPlan = _transformMealPlan(rawPlan);
+      
+      // AUTO-SUGGEST: Fill empty meal slots with intelligent suggestions
+      if (dailyCalories > 0 && dailyProtein > 0) {
+        print('[Dashboard] Auto-suggesting meals based on targets...');
+        
+        // Fetch all available foods
+        final cache = MealCacheService();
+        final cachedFoods = cache.getCachedFoods();
+        List<FoodModel> availableFoods = [];
+        
+        if (cachedFoods != null && cachedFoods.isNotEmpty) {
+          print('[Dashboard] Using cached foods for suggestions');
+          availableFoods = cachedFoods;
+        } else {
+          // Fetch from API if not cached
+          print('[Dashboard] Fetching foods from API for suggestions');
+          try {
+            final raw = await ApiService.getAllFoodSuggestions(limit: 50);
+            availableFoods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
+            cache.cacheFoods(availableFoods);
+          } catch (e) {
+            print('[Dashboard] Error fetching foods for suggestions: $e');
+          }
+        }
+        
+        // Calculate per-meal targets
+        final mealTargets = NutritionSuggestionService.calculatePerMealTargets(
+          dailyCalories: dailyCalories,
+          dailyProtein: dailyProtein,
+        );
+        
+        // Auto-suggest for empty meal slots
+        final mealCategories = ['breakfast', 'lunch', 'dinner', 'snacks'];
+        for (final mealType in mealCategories) {
+          final existingItems = transformedPlan[mealType] as List<dynamic>?;
+          
+          // Only auto-suggest if meal slot is empty
+          if (existingItems == null || existingItems.isEmpty) {
+            final targets = mealTargets[mealType];
+            if (targets != null && availableFoods.isNotEmpty) {
+              final suggested = NutritionSuggestionService.suggestFoodsForMeal(
+                availableFoods,
+                targets['calories'] ?? 0,
+                targets['protein'] ?? 0,
+                mealType,
+                count: 2, // Suggest 2 foods per empty meal
+              );
+              
+              // Convert suggested foods to meal item format
+              final suggestedItems = suggested.map((food) => {
+                'name': food.name ?? 'Unknown',
+                'foodName': food.name ?? 'Unknown',
+                'calorieRangeLabel': '${food.calories?.toInt() ?? 0} cal',
+                'trafficLight': 'GREEN',
+                'servingGrams': 100,
+                'isSuggested': true, // Mark as auto-suggested
+              }).toList();
+              
+              transformedPlan[mealType] = suggestedItems;
+              
+              print('[Dashboard] Auto-suggested ${suggestedItems.length} items for $mealType');
+            }
+          }
+        }
+      }
       
       print('[Dashboard] Transformed meal plan keys: ${transformedPlan.keys.toList()}');
       
@@ -774,6 +842,7 @@ class _MealSlot extends StatelessWidget {
               final name = food['name'] as String? ?? '';
               final cal = food['calorieRangeLabel'] as String?;
               final traffic = food['trafficLight'] as String? ?? 'GREEN';
+              final isSuggested = food['isSuggested'] as bool? ?? false;
               final trafficColor = switch (traffic) {
                 'GREEN'  => const Color(0xFF00C853),
                 'YELLOW' => const Color(0xFFFFB300),
@@ -783,9 +852,12 @@ class _MealSlot extends StatelessWidget {
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAFB),
+                  color: isSuggested ? const Color(0xFFE8F5E9) : const Color(0xFFF8FAFB),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.grey.shade100),
+                  border: Border.all(
+                    color: isSuggested ? const Color(0xFF00C853) : Colors.grey.shade100,
+                    width: isSuggested ? 1.5 : 1,
+                  ),
                 ),
                 child: Row(children: [
                   Container(
@@ -795,9 +867,23 @@ class _MealSlot extends StatelessWidget {
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(name,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w500)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name,
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w500)),
+                        if (isSuggested)
+                          const Text(
+                            '✨ AI Suggested',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF00C853),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                   if (cal != null)
                     Text(cal,
