@@ -5,6 +5,7 @@ import '../../models/food_model.dart';
 import '../../services/api_service.dart';
 import '../../services/meal_cache_service.dart';
 import '../../widgets/food_card.dart';
+import '../../widgets/ai_meal_navigation_widget.dart';
 import '../food/food_list_screen.dart';
 import '../activity/activity_screen.dart';
 import '../profile/profile_screen.dart';
@@ -351,6 +352,10 @@ class _HomeTabState extends State<_HomeTab> {
                   padding: EdgeInsets.all(20),
                   child: Center(child: Text('No meal plan available')),
                 ),
+              
+              // ── AI Meal Management ──
+              const SizedBox(height: 24),
+              const AiMealNavigationWidget(),
             ]),
           ),
         ),
