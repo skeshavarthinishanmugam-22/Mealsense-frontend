@@ -26,14 +26,19 @@ class NutritionSuggestionService {
     
     // Score each food based on how well it matches the targets
     final scoredFoods = appropriateFoods.map((food) {
-      final calorieScore = _calculateScoreDifference(
-        food.calories ?? 0,
-        targetCalories,
-      );
-      final proteinScore = _calculateScoreDifference(
-        (food.protein ?? 0).toInt(),
-        targetProtein,
-      );
+      // Use average of calorie range
+      final avgCalories = (food.calorieRangeMin + food.calorieRangeMax) ~/ 2;
+      
+      // Map protein level to grams (LOW: 5g, MEDIUM: 15g, HIGH: 25g)
+      final proteinGrams = switch (food.proteinLevel) {
+        'LOW' => 5,
+        'MEDIUM' => 15,
+        'HIGH' => 25,
+        _ => 10,
+      };
+      
+      final calorieScore = _calculateScoreDifference(avgCalories, targetCalories);
+      final proteinScore = _calculateScoreDifference(proteinGrams, targetProtein);
       
       // Combined score (lower is better)
       final combinedScore = (calorieScore * 0.6) + (proteinScore * 0.4);

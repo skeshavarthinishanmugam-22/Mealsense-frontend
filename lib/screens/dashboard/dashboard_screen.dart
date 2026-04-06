@@ -760,10 +760,66 @@ class _PlanStat extends StatelessWidget {
   ]);
 }
 
-class _MealSlot extends StatelessWidget {
+class _MealSlot extends StatefulWidget {
   final String emoji, label;
   final List<dynamic> items;
   const _MealSlot({required this.emoji, required this.label, required this.items});
+
+  @override
+  State<_MealSlot> createState() => _MealSlotState();
+}
+
+class _MealSlotState extends State<_MealSlot> {
+  final Set<int> _loggingIndices = {}; // Track which items are logging
+
+  Future<void> _logMealAte(Map<String, dynamic> food, int index) async {
+    setState(() => _loggingIndices.add(index));
+    
+    try {
+      // Extract meal type from widget label
+      String mealCategory = widget.label.toUpperCase();
+      
+      // Register meal via API
+      final response = await ApiService.registerMeal(
+        mealName: food['name'] as String? ?? 'Unknown',
+        mealCategory: mealCategory,
+        calories: (food['servingGrams'] as num? ?? 100).toInt(), // Use serving grams as proxy for calories
+        proteinGrams: (food['protein'] as num?)?.toDouble() ?? 0.0,
+        carbsGrams: (food['carbs'] as num?)?.toDouble() ?? 0.0,
+        fatGrams: (food['fat'] as num?)?.toDouble() ?? 0.0,
+      );
+      
+      if (response['statusCode'] == 201) {
+        print('[Dashboard] Meal logged: ${food['name']} at $mealCategory');
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('✓ ${food['name']} logged to $mealCategory'),
+              duration: const Duration(seconds: 2),
+              backgroundColor: const Color(0xFF00C853),
+            ),
+          );
+        }
+      } else {
+        throw Exception(response['error'] ?? 'Failed to log meal');
+      }
+    } catch (e) {
+      print('[Dashboard] Error logging meal: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _loggingIndices.remove(index));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -773,16 +829,16 @@ class _MealSlot extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text(emoji, style: const TextStyle(fontSize: 16)),
+            Text(widget.emoji, style: const TextStyle(fontSize: 16)),
             const SizedBox(width: 6),
-            Text(label,
+            Text(widget.label,
                 style: const TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                     color: Color(0xFF0D1B2A))),
           ]),
           const SizedBox(height: 6),
-          if (items.isEmpty)
+          if (widget.items.isEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -800,11 +856,14 @@ class _MealSlot extends StatelessWidget {
               ),
             )
           else
-            ...items.map((item) {
+            ...widget.items.asMap().entries.map((entry) {
+              final index = entry.key;
+              final item = entry.value;
               final food = item as Map<String, dynamic>;
               final name = food['name'] as String? ?? '';
               final cal = food['calorieRangeLabel'] as String?;
               final traffic = food['trafficLight'] as String? ?? 'GREEN';
+              final isLogging = _loggingIndices.contains(index);
               final trafficColor = switch (traffic) {
                 'GREEN'  => const Color(0xFF00C853),
                 'YELLOW' => const Color(0xFFFFB300),
@@ -836,6 +895,34 @@ class _MealSlot extends StatelessWidget {
                             color: Color(0xFF00C853),
                             fontSize: 11,
                             fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    height: 28,
+                    child: ElevatedButton(
+                      onPressed: isLogging ? null : () => _logMealAte(food, index),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF00C853),
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor: Colors.grey.shade300,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                        elevation: 0,
+                      ),
+                      child: isLogging
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
+                              ),
+                            )
+                          : const Text(
+                              'Ate',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                            ),
+                    ),
+                  ),
                 ]),
               );
             }),
