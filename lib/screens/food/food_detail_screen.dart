@@ -1,19 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/food_model.dart';
+import '../../services/api_service.dart';
+import '../../services/meal_cache_service.dart';
 
-class FoodDetailScreen extends StatelessWidget {
+class FoodDetailScreen extends StatefulWidget {
   final FoodModel food;
   const FoodDetailScreen({super.key, required this.food});
 
   @override
+  State<FoodDetailScreen> createState() => _FoodDetailScreenState();
+}
+
+class _FoodDetailScreenState extends State<FoodDetailScreen> {
+  String? _actionInProgress; // Track which action is loading
+  String? _actionCompleted; // Track completed action
+
+  @override
   Widget build(BuildContext context) {
-    final trafficColor = switch (food.trafficLight) {
+    final trafficColor = switch (widget.food.trafficLight) {
       'GREEN'  => const Color(0xFF00C853),
       'YELLOW' => const Color(0xFFFFB300),
       _        => const Color(0xFFE53935),
     };
-    final gradientColors = _categoryGradient(food.category);
+    final gradientColors = _categoryGradient(widget.food.category);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F8),
@@ -53,7 +63,7 @@ class FoodDetailScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const SizedBox(height: 40),
-                    Text(food.emoji, style: const TextStyle(fontSize: 90)),
+                    Text(widget.food.emoji, style: const TextStyle(fontSize: 90)),
                     const SizedBox(height: 8),
                     // Traffic light badge
                     Container(
@@ -71,7 +81,7 @@ class FoodDetailScreen extends StatelessWidget {
                               decoration: BoxDecoration(
                                   color: trafficColor, shape: BoxShape.circle)),
                           const SizedBox(width: 6),
-                          Text(food.trafficLightMessage,
+                          Text(widget.food.trafficLightMessage,
                               style: TextStyle(
                                   color: trafficColor,
                                   fontWeight: FontWeight.w700,
@@ -92,18 +102,18 @@ class FoodDetailScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Name + category ──
-                  Text(food.name,
+                  Text(widget.food.name,
                       style: const TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF0D1B2A))),
                   const SizedBox(height: 6),
                   Wrap(spacing: 8, runSpacing: 6, children: [
-                    _Badge(food.categoryLabel, const Color(0xFF00C853)),
-                    if (food.subCategory != null)
-                      _Badge(food.subCategory!, const Color(0xFF1E88E5)),
-                    if (food.isVegetarian) _Badge('🌿 Vegetarian', Colors.green.shade700),
-                    if (food.isVegan) _Badge('🌱 Vegan', Colors.teal),
+                    _Badge(widget.food.categoryLabel, const Color(0xFF00C853)),
+                    if (widget.food.subCategory != null)
+                      _Badge(widget.food.subCategory!, const Color(0xFF1E88E5)),
+                    if (widget.food.isVegetarian) _Badge('🌿 Vegetarian', Colors.green.shade700),
+                    if (widget.food.isVegan) _Badge('🌱 Vegan', Colors.teal),
                   ]),
                   const SizedBox(height: 20),
 
@@ -115,7 +125,7 @@ class FoodDetailScreen extends StatelessWidget {
                       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         const Text('Portion Size',
                             style: TextStyle(color: Colors.grey, fontSize: 12)),
-                        Text(food.portionDescription,
+                        Text(widget.food.portionDescription,
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 15,
@@ -136,14 +146,14 @@ class FoodDetailScreen extends StatelessWidget {
                     mainAxisSpacing: 10,
                     childAspectRatio: 2.2,
                     children: [
-                      _StatTile('🔥', 'Calories', food.calorieRangeLabel,
+                      _StatTile('🔥', 'Calories', widget.food.calorieRangeLabel,
                           const Color(0xFFFF6B35)),
-                      _StatTile('💪', 'Protein Level', food.proteinLevel,
+                      _StatTile('💪', 'Protein Level', widget.food.proteinLevel,
                           const Color(0xFF1E88E5)),
-                      _StatTile('❤️', 'Health Score', '${food.healthScore} / 10',
+                      _StatTile('❤️', 'Health Score', '${widget.food.healthScore} / 10',
                           const Color(0xFF00C853)),
                       _StatTile('📊', 'Calorie Range',
-                          '${food.calorieRangeMin}–${food.calorieRangeMax} kcal',
+                          '${widget.food.calorieRangeMin}–${widget.food.calorieRangeMax} kcal',
                           const Color(0xFF8E24AA)),
                     ],
                   ),
@@ -153,13 +163,13 @@ class FoodDetailScreen extends StatelessWidget {
                   const _SectionLabel('Allergens'),
                   const SizedBox(height: 10),
                   _InfoCard(
-                    child: food.containsGluten || food.containsDairy ||
-                            food.containsNuts || food.containsEggs
+                    child: widget.food.containsGluten || widget.food.containsDairy ||
+                            widget.food.containsNuts || widget.food.containsEggs
                         ? Wrap(spacing: 8, runSpacing: 8, children: [
-                            if (food.containsGluten) _AllergenChip('⚠️ Gluten'),
-                            if (food.containsDairy) _AllergenChip('⚠️ Dairy'),
-                            if (food.containsNuts) _AllergenChip('⚠️ Nuts'),
-                            if (food.containsEggs) _AllergenChip('⚠️ Eggs'),
+                            if (widget.food.containsGluten) _AllergenChip('⚠️ Gluten'),
+                            if (widget.food.containsDairy) _AllergenChip('⚠️ Dairy'),
+                            if (widget.food.containsNuts) _AllergenChip('⚠️ Nuts'),
+                            if (widget.food.containsEggs) _AllergenChip('⚠️ Eggs'),
                           ])
                         : Row(children: [
                             const Icon(Icons.check_circle,
@@ -173,14 +183,14 @@ class FoodDetailScreen extends StatelessWidget {
                   ),
 
                   // ── Substitutes ──
-                  if (food.substitutes != null && food.substitutes!.isNotEmpty) ...[
+                  if (widget.food.substitutes != null && widget.food.substitutes!.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     const _SectionLabel('Healthy Substitutes'),
                     const SizedBox(height: 10),
                     _InfoCard(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: food.substitutes!
+                        children: widget.food.substitutes!
                             .split(',')
                             .map((s) => s.trim())
                             .where((s) => s.isNotEmpty)
@@ -203,23 +213,14 @@ class FoodDetailScreen extends StatelessWidget {
                   ],
 
                   const SizedBox(height: 32),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.check_rounded),
-                      label: const Text('Got it',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF00C853),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                        elevation: 0,
-                      ),
-                    ),
+                  Row(
+                    children: [
+                      _buildActionButton('ate', 'Ate 🍽️', const Color(0xFF00C853)),
+                      const SizedBox(width: 12),
+                      _buildActionButton('skip', 'Skip ⏭️', const Color(0xFFFF9800)),
+                      const SizedBox(width: 12),
+                      _buildActionButton('substitute', 'Swap 🔄', const Color(0xFF1E88E5)),
+                    ],
                   ),
                   const SizedBox(height: 20),
                 ],
@@ -227,6 +228,135 @@ class FoodDetailScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _handleMealAction(String action) async {
+    setState(() => _actionInProgress = action);
+    print('[FoodDetail] Starting meal action: $action for food: ${widget.food.id}');
+    
+    try {
+      if (action == 'ate') {
+        await ApiService.logMealAte(widget.food.id);
+        print('[FoodDetail] Logged meal as eaten successfully');
+      } else if (action == 'skip') {
+        await ApiService.logMealSkip(widget.food.id);
+        print('[FoodDetail] Logged meal as skipped successfully');
+      } else if (action == 'substitute') {
+        if (widget.food.substitutes == null || widget.food.substitutes!.isEmpty) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No substitutes available')),
+            );
+          }
+          setState(() => _actionInProgress = null);
+          return;
+        }
+        // Show substitute selection dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('Choose a Substitute'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: widget.food.substitutes!
+                      .split(',')
+                      .map((s) => s.trim())
+                      .where((s) => s.isNotEmpty)
+                      .map((substitute) => ListTile(
+                            title: Text(substitute),
+                            onTap: () async {
+                              Navigator.pop(ctx);
+                              await ApiService.logMealSubstitute(
+                                widget.food.id,
+                                substitute,
+                              );
+                              print('[FoodDetail] Logged meal substitution successfully');
+                              if (mounted) {
+                                setState(() => _actionCompleted = 'substitute');
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Substituted to $substitute')),
+                                );
+                                Future.delayed(const Duration(milliseconds: 500), () {
+                                  if (mounted) Navigator.pop(context);
+                                });
+                              }
+                            },
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+          );
+        }
+        setState(() => _actionInProgress = null);
+        return;
+      }
+
+      // Mark action as completed for Ate and Skip
+      if (mounted) {
+        setState(() => _actionCompleted = action);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(action == 'ate'
+                ? 'Logged as eaten ✓'
+                : 'Logged as skipped ✓'),
+            backgroundColor: const Color(0xFF00C853),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        
+        // Invalidate cache and close after brief delay
+        MealCacheService().invalidateCache();
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) Navigator.pop(context);
+      }
+    } catch (e) {
+      print('[FoodDetail] Error handling meal action: $e');
+      if (mounted) {
+        setState(() => _actionInProgress = null);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: const Color(0xFFE53935),
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildActionButton(String action, String label, Color color) {
+    final isLoading = _actionInProgress == action;
+    final isCompleted = _actionCompleted == action;
+
+    return Expanded(
+      child: SizedBox(
+        height: 48,
+        child: ElevatedButton(
+          onPressed: isLoading || isCompleted ? null : () => _handleMealAction(action),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: color.withValues(alpha: 0.5),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            elevation: 0,
+          ),
+          child: isLoading
+              ? SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                  ),
+                )
+              : isCompleted
+                  ? const Icon(Icons.check_rounded)
+                  : Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ),
       ),
     );
   }

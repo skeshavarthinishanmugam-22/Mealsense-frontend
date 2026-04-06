@@ -4,6 +4,7 @@ import '../../providers/user_provider.dart';
 import '../../models/user_model.dart';
 import '../../models/food_model.dart';
 import '../../services/api_service.dart';
+import '../../services/meal_cache_service.dart';
 import '../../widgets/food_card.dart';
 import '../food/food_list_screen.dart';
 import '../activity/activity_screen.dart';
@@ -178,18 +179,53 @@ class _HomeTabState extends State<_HomeTab> {
 
   Future<void> _loadTodayFoods() async {
     setState(() => _foodsLoading = true);
+    
+    // Try to use cached data first
+    final cache = MealCacheService();
+    final cachedFoods = cache.getCachedFoods();
+    
+    if (cachedFoods != null) {
+      print('[Dashboard] Using cached foods');
+      if (mounted) {
+        setState(() {
+          _todayFoods = cachedFoods;
+          _foodsLoading = false;
+        });
+      }
+      return;
+    }
+    
+    // Fetch from API if cache is empty/invalid
+    print('[Dashboard] Cache miss, fetching from API');
     final raw = await ApiService.getAllFoodSuggestions(limit: 10);
     if (mounted) {
+      final foods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
+      cache.cacheFoods(foods);
       setState(() {
-        _todayFoods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
+        _todayFoods = foods;
         _foodsLoading = false;
       });
     }
   }
 
   Future<void> _loadMealPlan() async {
+    // Try to use cached data first
+    final cache = MealCacheService();
+    final cachedPlan = cache.getCachedMealPlan();
+    
+    if (cachedPlan != null) {
+      print('[Dashboard] Using cached meal plan');
+      if (mounted) setState(() { _mealPlan = cachedPlan; _planLoading = false; });
+      return;
+    }
+    
+    // Fetch from API if cache is empty/invalid
+    print('[Dashboard] Cache miss, fetching meal plan from API');
     final plan = await ApiService.getDailyMealPlan();
-    if (mounted) setState(() { _mealPlan = plan; _planLoading = false; });
+    if (mounted) {
+      cache.cacheMealPlan(plan);
+      setState(() { _mealPlan = plan; _planLoading = false; });
+    }
   }
 
   @override
@@ -209,12 +245,6 @@ class _HomeTabState extends State<_HomeTab> {
               // ── Nutrition Targets ──
               _NutritionTargetsCard(),
               const SizedBox(height: 20),
-
-              // ── Meal Categories ──
-              const _SectionTitle(title: 'Meals', subtitle: 'Browse by category'),
-              const SizedBox(height: 14),
-              _MealCategoryGrid(),
-              const SizedBox(height: 24),
 
               // ── Today's Suggestions ──
               _SectionTitle(
@@ -482,94 +512,6 @@ class _MacroTile extends StatelessWidget {
   }
 }
 
-// ─── Meal Category Grid ────────────────────────────────────────────────────────
-
-class _MealCategoryGrid extends StatelessWidget {
-  static const _categories = [
-    ('🌅', 'Breakfast', 'BREAKFAST', Color(0xFFFFE082), Color(0xFFFFF9C4)),
-    ('☀️', 'Lunch', 'LUNCH', Color(0xFFA5D6A7), Color(0xFFE8F5E9)),
-    ('🌙', 'Dinner', 'DINNER', Color(0xFF90CAF9), Color(0xFFE3F2FD)),
-    ('🍎', 'Snack', 'SNACK', Color(0xFFF48FB1), Color(0xFFFCE4EC)),
-    ('💪', 'Protein', 'PROTEIN', Color(0xFFFFCC80), Color(0xFFFFF3E0)),
-    ('🥗', 'All Foods', 'All', Color(0xFFCE93D8), Color(0xFFF3E5F5)),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.0,
-      children: _categories.map((c) => _CategoryCard(
-        emoji: c.$1,
-        label: c.$2,
-        category: c.$3,
-        gradientStart: c.$4,
-        gradientEnd: c.$5,
-      )).toList(),
-    );
-  }
-}
-
-class _CategoryCard extends StatelessWidget {
-  final String emoji, label, category;
-  final Color gradientStart, gradientEnd;
-  const _CategoryCard({
-    required this.emoji,
-    required this.label,
-    required this.category,
-    required this.gradientStart,
-    required this.gradientEnd,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => FoodListScreen(
-            asRoute: true,
-            initialCategory: category == 'All' ? null : category,
-          ),
-        ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [gradientEnd, gradientStart],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: gradientStart.withValues(alpha: 0.4),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 32)),
-            const SizedBox(height: 6),
-            Text(label,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12,
-                    color: Color(0xFF1A1A2E))),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ─── Section Title ─────────────────────────────────────────────────────────────
 
 class _SectionTitle extends StatelessWidget {
@@ -636,6 +578,13 @@ class _MealPlanCard extends StatelessWidget {
     final targetCal = plan['targetCalories'] as int?;
     final targetProtein = plan['targetProtein'] as int?;
 
+    // Debug: Log meal plan structure
+    print('[Dashboard] Meal plan keys: ${plan.keys.toList()}');
+    for (var slot in _slots) {
+      final items = plan[slot.$3] as List<dynamic>?;
+      print('[Dashboard] ${slot.$2} (${slot.$3}): ${items?.length ?? 0} items');
+    }
+
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -674,10 +623,12 @@ class _MealPlanCard extends StatelessWidget {
               ),
             ),
 
-          // Meal slots
+          // Meal slots - show all slots, even if empty
           ..._slots.map((slot) {
             final items = plan[slot.$3] as List<dynamic>?;
-            if (items == null || items.isEmpty) return const SizedBox.shrink();
+            if (items == null || items.isEmpty) {
+              return _MealSlot(emoji: slot.$1, label: slot.$2, items: []);
+            }
             return _MealSlot(emoji: slot.$1, label: slot.$2, items: items);
           }),
         ],
@@ -722,45 +673,63 @@ class _MealSlot extends StatelessWidget {
                     color: Color(0xFF0D1B2A))),
           ]),
           const SizedBox(height: 6),
-          ...items.map((item) {
-            final food = item as Map<String, dynamic>;
-            final name = food['name'] as String? ?? '';
-            final cal = food['calorieRangeLabel'] as String?;
-            final traffic = food['trafficLight'] as String? ?? 'GREEN';
-            final trafficColor = switch (traffic) {
-              'GREEN'  => const Color(0xFF00C853),
-              'YELLOW' => const Color(0xFFFFB300),
-              _        => const Color(0xFFE53935),
-            };
-            return Container(
-              margin: const EdgeInsets.only(bottom: 6),
+          if (items.isEmpty)
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFB),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.grey.shade100),
               ),
-              child: Row(children: [
-                Container(
-                  width: 8, height: 8,
-                  decoration: BoxDecoration(
-                      color: trafficColor, shape: BoxShape.circle),
+              child: const Text(
+                'No items planned',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(name,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
+              ),
+            )
+          else
+            ...items.map((item) {
+              final food = item as Map<String, dynamic>;
+              final name = food['name'] as String? ?? '';
+              final cal = food['calorieRangeLabel'] as String?;
+              final traffic = food['trafficLight'] as String? ?? 'GREEN';
+              final trafficColor = switch (traffic) {
+                'GREEN'  => const Color(0xFF00C853),
+                'YELLOW' => const Color(0xFFFFB300),
+                _        => const Color(0xFFE53935),
+              };
+              return Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFB),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.grey.shade100),
                 ),
-                if (cal != null)
-                  Text(cal,
-                      style: const TextStyle(
-                          color: Color(0xFF00C853),
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold)),
-              ]),
-            );
-          }),
+                child: Row(children: [
+                  Container(
+                    width: 8, height: 8,
+                    decoration: BoxDecoration(
+                        color: trafficColor, shape: BoxShape.circle),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(name,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w500)),
+                  ),
+                  if (cal != null)
+                    Text(cal,
+                        style: const TextStyle(
+                            color: Color(0xFF00C853),
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold)),
+                ]),
+              );
+            }),
         ],
       ),
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/meal_cache_service.dart';
 
 class AppUser {
   final String name;
@@ -142,9 +143,11 @@ class AppUser {
 
 class UserNotifier extends ChangeNotifier {
   AppUser? _user;
+  bool _profileCached = false; // Track if profile has been fetched this session
 
   AppUser? get user => _user;
   bool get hasUser => _user != null;
+  bool get isProfileCached => _profileCached; // Getter to check cache status
 
   void setUser(AppUser user) {
     _user = user;
@@ -286,8 +289,15 @@ class UserNotifier extends ChangeNotifier {
   }
 
   /// Loads full profile from GET /v1/auth/profile and updates user state.
+  /// Caches the result in memory for the session; subsequent calls are no-ops unless cache is cleared.
   Future<void> loadProfile() async {
+    // Skip if already cached this session
+    if (_profileCached) {
+      print('[UserProvider] Profile already cached this session, skipping API call');
+      return;
+    }
     try {
+      print('[UserProvider] Fetching profile from API...');
       final res = await ApiService.getUserProfile();
       if (res['statusCode'] == 200) {
         _user = AppUser(
@@ -310,13 +320,19 @@ class UserNotifier extends ChangeNotifier {
           token: _user?.token,
           onboardingDone: res['onboardingDone'] as bool? ?? true,
         );
+        _profileCached = true; // Mark profile as cached
+        print('[UserProvider] Profile cached for session');
         notifyListeners();
       }
-    } catch (_) {}
+    } catch (e) {
+      print('[UserProvider] Error loading profile: $e');
+    }
   }
 
   Future<void> logout() async {
     await ApiService.clearToken();
+    MealCacheService().clearAll(); // Clear meal cache on logout
+    _profileCached = false; // Clear profile cache on logout
     _user = null;
     notifyListeners();
   }
@@ -328,8 +344,15 @@ class UserNotifier extends ChangeNotifier {
   }
 
   void clear() {
+    _profileCached = false; // Clear cache on clear
     _user = null;
     notifyListeners();
+  }
+
+  /// Explicitly refresh the profile cache (called after profile updates)
+  Future<void> refreshProfile() async {
+    _profileCached = false; // Clear cache to force refresh
+    await loadProfile();
   }
 }
 

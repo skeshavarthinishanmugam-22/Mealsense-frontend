@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../models/food_model.dart';
 import '../../services/api_service.dart';
+import '../../services/meal_cache_service.dart';
 import 'food_detail_screen.dart';
 
 class FoodListScreen extends StatefulWidget {
@@ -42,17 +43,44 @@ class _FoodListScreenState extends State<FoodListScreen> {
   Future<void> _fetchFoods() async {
     setState(() { _isLoading = true; _error = null; });
     try {
+      final cache = MealCacheService();
       final List<dynamic> raw;
+      
       if (_selectedCategory == 'All') {
+        // Try cache for "All" foods
+        final cachedFoods = cache.getCachedFoods();
+        if (cachedFoods != null) {
+          print('[FoodList] Using cached foods');
+          if (mounted) {
+            setState(() {
+              _foods = cachedFoods;
+              _isLoading = false;
+            });
+          }
+          return;
+        }
+        
+        print('[FoodList] Cache miss for All foods, fetching from API');
         raw = await ApiService.getAllFoodSuggestions(limit: 50);
+        if (mounted) {
+          final foods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
+          cache.cacheFoods(foods);
+          setState(() {
+            _foods = foods;
+            _isLoading = false;
+          });
+        }
       } else {
+        // Category-specific foods are fetched fresh (not cached)
+        // to avoid stale category data
+        print('[FoodList] Fetching $_selectedCategory foods from API');
         raw = await ApiService.getFoodSuggestionsByCategory(_selectedCategory, limit: 30);
-      }
-      if (mounted) {
-        setState(() {
-          _foods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _foods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
+            _isLoading = false;
+          });
+        }
       }
     } catch (_) {
       if (mounted) setState(() { _error = 'Failed to load foods'; _isLoading = false; });

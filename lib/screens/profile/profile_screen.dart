@@ -20,16 +20,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _profileLoaded = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Initialize text controllers with empty values, will be populated when profile loads
+    _nameCtrl = TextEditingController();
+    _ageCtrl = TextEditingController();
+    _weightCtrl = TextEditingController();
+    _heightCtrl = TextEditingController();
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final user = UserProvider.of(context).user;
-    _nameCtrl = TextEditingController(text: user?.name ?? '');
-    _ageCtrl = TextEditingController(text: '${user?.age ?? ''}');
-    _weightCtrl = TextEditingController(text: '${user?.weightKg ?? ''}');
-    _heightCtrl = TextEditingController(text: '${user?.heightCm ?? ''}');
+    final notifier = UserProvider.of(context);
+    final user = notifier.user;
+    
+    // Update text field values from current user data
+    _nameCtrl.text = user?.name ?? '';
+    _ageCtrl.text = '${user?.age ?? ''}';
+    _weightCtrl.text = '${user?.weightKg ?? ''}';
+    _heightCtrl.text = '${user?.heightCm ?? ''}';
+    
+    // Load profile only once and cache it for the session
     if (!_profileLoaded) {
       _profileLoaded = true;
-      UserProvider.of(context).loadProfile();
+      print('[Profile] First load, fetching profile from provider...');
+      notifier.loadProfile();
     }
   }
 
@@ -45,10 +61,228 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveEdits(AppUser user) async {
     final notifier = UserProvider.of(context);
     final name = _nameCtrl.text.trim().isEmpty ? user.name : _nameCtrl.text.trim();
-    // Call backend to update display name, then reload full profile
+    // Call backend to update display name, then refresh profile cache
     await ApiService.updateProfile(displayName: name);
-    await notifier.loadProfile();
+    print('[Profile] Profile update, refreshing cache...');
+    await notifier.refreshProfile();
     setState(() => _editing = false);
+  }
+
+  void _showChangeGoalDialog(BuildContext context) {
+    final goals = [
+      ('LOSE_WEIGHT', '🏃 Lose Weight'),
+      ('GAIN_MUSCLE', '💪 Gain Muscle'),
+      ('MAINTAIN', '⚖️ Maintain Weight'),
+    ];
+    
+    String selectedGoal = UserProvider.of(context).user?.goal ?? 'LOSE_WEIGHT';
+    final currentUser = UserProvider.of(context).user;
+
+    print('[Profile] Change Goal dialog opened');
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Change Goal'),
+        content: StatefulBuilder(
+          builder: (ctx, setState) => SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: goals.map((goal) {
+                final isSelected = selectedGoal == goal.$1;
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  color: isSelected ? const Color(0xFFE8F5E9) : Colors.white,
+                  child: ListTile(
+                    onTap: () {
+                      setState(() => selectedGoal = goal.$1);
+                    },
+                    title: Text(
+                      goal.$2,
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                        color: isSelected ? const Color(0xFF00C853) : Colors.black,
+                      ),
+                    ),
+                    trailing: isSelected
+                        ? const Icon(Icons.check_circle, color: Color(0xFF00C853))
+                        : const Icon(Icons.circle_outlined, color: Colors.grey),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              print('[Profile] Change Goal dialog cancelled');
+            },
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final goalLabel = goals.firstWhere((g) => g.$1 == selectedGoal).$2;
+              print('[Profile] Goal submitted: $selectedGoal');
+              
+              if (currentUser == null) {
+                print('[Profile] User not found');
+                if (context.mounted) Navigator.pop(context);
+                return;
+              }
+              
+              try {
+                print('[Profile] Calling API to update goal...');
+                final response = await ApiService.updateProfile(
+                  displayName: currentUser.name,
+                  goal: selectedGoal,
+                );
+                print('[Profile] API Response: ${response['statusCode']}');
+                
+                if (!context.mounted) {
+                  print('[Profile] Context unmounted after API call');
+                  return;
+                }
+                
+                // Refresh profile cache to reflect changes
+                print('[Profile] Goal updated, refreshing profile cache...');
+                final notifier = UserProvider.of(context);
+                await notifier.refreshProfile();
+                
+                if (!context.mounted) {
+                  print('[Profile] Context unmounted after profile reload');
+                  return;
+                }
+                
+                print('[Profile] Goal update successful, closing dialog');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Goal updated to: $goalLabel'),
+                    duration: const Duration(seconds: 2),
+                    backgroundColor: const Color(0xFF00C853),
+                  ),
+                );
+                
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+              } catch (e, st) {
+                print('[Profile] Error updating goal: $e');
+                print('[Profile] Stack trace: $st');
+                
+                if (!context.mounted) {
+                  print('[Profile] Context unmounted, skipping error UI');
+                  return;
+                }
+                
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Error: ${e.toString()}'),
+                    duration: const Duration(seconds: 3),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00C853),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFeedback(BuildContext context, String label) {
+    print('[Profile] $label tapped');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$label feature coming soon'),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.grey[700],
+      ),
+    );
+  }
+
+  void _showAboutDialog(BuildContext context) {
+    print('[Profile] About MealSense dialog opened');
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('About MealSense'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.restaurant, color: Color(0xFF00C853), size: 48),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Center(
+                child: Text(
+                  'MealSense',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF00C853)),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Center(
+                child: Text(
+                  'Version 1.0.0',
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Your intelligent meal planning companion. MealSense helps you make healthier food choices based on your personal goals and nutritional requirements.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey, height: 1.5),
+              ),
+              const SizedBox(height: 12),
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      '© 2026 MealSense\nAll rights reserved',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          Center(
+            child: ElevatedButton(
+              onPressed: () {
+                print('[Profile] About MealSense dialog closed');
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF00C853),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Close'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -158,10 +392,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 12),
             _SettingsTile(icon: Icons.notifications_outlined, label: 'Reminders', color: const Color(0xFF1E88E5),
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RemindersScreen()))),
-            _SettingsTile(icon: Icons.flag_outlined, label: 'Change Goal', color: const Color(0xFF00C853), onTap: () {}),
-            _SettingsTile(icon: Icons.lock_outline, label: 'Privacy & Security', color: const Color(0xFF8E24AA), onTap: () {}),
-            _SettingsTile(icon: Icons.help_outline, label: 'Help & Support', color: const Color(0xFFFF9800), onTap: () {}),
-            _SettingsTile(icon: Icons.info_outline, label: 'About MealSense', color: Colors.grey, onTap: () {}),
+            _SettingsTile(icon: Icons.flag_outlined, label: 'Change Goal', color: const Color(0xFF00C853), 
+              onTap: () => _showChangeGoalDialog(context)),
+            _SettingsTile(icon: Icons.lock_outline, label: 'Privacy & Security', color: const Color(0xFF8E24AA), 
+              onTap: () => _showFeedback(context, 'Privacy & Security')),
+            _SettingsTile(icon: Icons.help_outline, label: 'Help & Support', color: const Color(0xFFFF9800), 
+              onTap: () => _showFeedback(context, 'Help & Support')),
+            _SettingsTile(icon: Icons.info_outline, label: 'About MealSense', color: Colors.grey, 
+              onTap: () => _showAboutDialog(context)),
             const SizedBox(height: 12),
 
             // Logout

@@ -106,14 +106,16 @@ class ApiService {
     return {'statusCode': res.statusCode};
   }
 
-  /// PUT /v1/auth/profile?displayName=&profileImageUrl=
+  /// PUT /v1/auth/profile?displayName=&profileImageUrl=&goal=
   /// Response: UserDTO
   static Future<Map<String, dynamic>> updateProfile({
     required String displayName,
     String? profileImageUrl,
+    String? goal,
   }) async {
     final params = <String, String>{'displayName': displayName};
     if (profileImageUrl != null) params['profileImageUrl'] = profileImageUrl;
+    if (goal != null) params['goal'] = goal;
     final uri = Uri.parse('$baseUrl/auth/profile')
         .replace(queryParameters: params);
     final res = await http.put(uri, headers: await _authHeaders());
@@ -329,5 +331,53 @@ class ApiService {
       return jsonDecode(res.body) as Map<String, dynamic>;
     }
     return {};
+  }
+
+  // ── Meal Actions ───────────────────────────────────────────────────────────
+
+  /// POST /v1/suggestions/foods/{foodId}/ate
+  /// Logs that user ate this food
+  /// Response: { success: bool, message: string }
+  static Future<Map<String, dynamic>> logMealAte(String foodId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/suggestions/foods/$foodId/ate'),
+      headers: await _authHeaders(),
+    );
+    return {
+      'statusCode': res.statusCode,
+      ...jsonDecode(res.body) as Map<String, dynamic>,
+    };
+  }
+
+  /// POST /v1/suggestions/foods/{foodId}/skip
+  /// Logs that user skipped this food
+  /// Response: { success: bool, message: string }
+  static Future<Map<String, dynamic>> logMealSkip(String foodId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/suggestions/foods/$foodId/skip'),
+      headers: await _authHeaders(),
+    );
+    return {
+      'statusCode': res.statusCode,
+      ...jsonDecode(res.body) as Map<String, dynamic>,
+    };
+  }
+
+  /// POST /v1/suggestions/foods/{foodId}/substitute
+  /// Body: { substituteId: string }
+  /// Response: { success: bool, message: string }
+  static Future<Map<String, dynamic>> logMealSubstitute(
+    String foodId,
+    String substituteId,
+  ) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/suggestions/foods/$foodId/substitute'),
+      headers: await _authHeaders(),
+      body: jsonEncode({'substituteId': substituteId}),
+    );
+    return {
+      'statusCode': res.statusCode,
+      ...jsonDecode(res.body) as Map<String, dynamic>,
+    };
   }
 }
