@@ -89,6 +89,26 @@ class ApiService {
     return {'statusCode': res.statusCode, ...data};
   }
 
+  /// POST /v1/auth/refresh
+  /// Refreshes the JWT token before it expires
+  /// Response: AuthResponse { user: UserDTO, token, message }
+  static Future<Map<String, dynamic>> refreshToken() async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/auth/refresh'),
+      headers: _authHeaders(),
+    );
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode == 200 && data['token'] != null && data['user'] != null) {
+      final user = data['user'] as Map<String, dynamic>;
+      await saveToken(
+        data['token'] as String,
+        user['id'] as String,
+        (data['user'] as Map)['email'] as String? ?? SessionManager().getUserEmail() ?? '',
+      );
+    }
+    return {'statusCode': res.statusCode, ...data};
+  }
+
   /// GET /v1/auth/me
   /// Response: UserDTO { id, email, displayName, profileImageUrl, emailVerified, createdAt, lastLoginAt }
   static Future<Map<String, dynamic>> getCurrentUser() async {
@@ -391,5 +411,139 @@ class ApiService {
       'statusCode': res.statusCode,
       ...jsonDecode(res.body) as Map<String, dynamic>,
     };
+  }
+
+  // ── AI Meal Management ─────────────────────────────────────────────────────
+
+  /// GET /v1/ai/meals/suggestions?mealType=breakfast&targetCalories=430&targetProtein=35
+  /// Response: { mealType, count, suggestions: List<AiFoodSuggestionDto> }
+  static Future<Map<String, dynamic>> getAiSuggestions({
+    String mealType = 'breakfast',
+    int targetCalories = 430,
+    int targetProtein = 35,
+    String? dietary,
+  }) async {
+    final params = <String, String>{
+      'mealType': mealType,
+      'targetCalories': targetCalories.toString(),
+      'targetProtein': targetProtein.toString(),
+    };
+    if (dietary != null) params['dietary'] = dietary;
+    final uri = Uri.parse('$baseUrl/ai/meals/suggestions')
+        .replace(queryParameters: params);
+    final res = await http.get(uri, headers: _authHeaders());
+    return {
+      'statusCode': res.statusCode,
+      ...jsonDecode(res.body) as Map<String, dynamic>,
+    };
+  }
+
+  /// POST /v1/ai/meals/custom
+  /// Body: { mealName, description, calories, proteinGrams, carbsGrams, fatGrams, fiberGrams, mealCategory }
+  /// Response: { message, mealId, meal }
+  static Future<Map<String, dynamic>> addCustomMeal({
+    required String mealName,
+    String? description,
+    required int calories,
+    required double proteinGrams,
+    required double carbsGrams,
+    required double fatGrams,
+    double? fiberGrams,
+    required String mealCategory,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/ai/meals/custom'),
+      headers: _authHeaders(),
+      body: jsonEncode({
+        'mealName': mealName,
+        'description': description ?? '',
+        'calories': calories,
+        'proteinGrams': proteinGrams,
+        'carbsGrams': carbsGrams,
+        'fatGrams': fatGrams,
+        'fiberGrams': fiberGrams ?? 0.0,
+        'mealCategory': mealCategory,
+      }),
+    );
+    return {
+      'statusCode': res.statusCode,
+      ...jsonDecode(res.body) as Map<String, dynamic>,
+    };
+  }
+
+  /// POST /v1/ai/meals/register
+  /// Body: { mealName, mealCategory, calories, proteinGrams, carbsGrams, fatGrams, fiberGrams, mealDate, notes }
+  /// Response: { message, logId, meal }
+  static Future<Map<String, dynamic>> registerMeal({
+    required String mealName,
+    required String mealCategory,
+    required int calories,
+    required double proteinGrams,
+    required double carbsGrams,
+    required double fatGrams,
+    double? fiberGrams,
+    String? mealDate,
+    String? notes,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/ai/meals/register'),
+      headers: _authHeaders(),
+      body: jsonEncode({
+        'mealName': mealName,
+        'mealCategory': mealCategory,
+        'calories': calories,
+        'proteinGrams': proteinGrams,
+        'carbsGrams': carbsGrams,
+        'fatGrams': fatGrams,
+        'fiberGrams': fiberGrams ?? 0.0,
+        'mealDate': mealDate,
+        'notes': notes ?? '',
+      }),
+    );
+    return {
+      'statusCode': res.statusCode,
+      ...jsonDecode(res.body) as Map<String, dynamic>,
+    };
+  }
+
+  /// GET /v1/ai/meals/custom
+  /// Response: { meals: List<CustomMeal>, count }
+  static Future<Map<String, dynamic>> getCustomMeals() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/ai/meals/custom'),
+      headers: _authHeaders(),
+    );
+    return {
+      'statusCode': res.statusCode,
+      ...jsonDecode(res.body) as Map<String, dynamic>,
+    };
+  }
+
+  /// GET /v1/ai/meals/history?startDate=2024-01-01&endDate=2024-12-31
+  /// Response: { history: List<MealLog>, count, totalCalories, totalProtein, dateRange }
+  static Future<Map<String, dynamic>> getMealHistory({
+    String? startDate,
+    String? endDate,
+  }) async {
+    final params = <String, String>{};
+    if (startDate != null) params['startDate'] = startDate;
+    if (endDate != null) params['endDate'] = endDate;
+    final uri = Uri.parse('$baseUrl/ai/meals/history')
+        .replace(queryParameters: params.isEmpty ? null : params);
+    final res = await http.get(uri, headers: _authHeaders());
+    return {
+      'statusCode': res.statusCode,
+      ...jsonDecode(res.body) as Map<String, dynamic>,
+    };
+  }
+
+  /// DELETE /v1/ai/meals/custom/{mealId}
+  /// Response: { message }
+  static Future<int> deleteCustomMeal(String mealId) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/ai/meals/custom/$mealId'),
+      headers: _authHeaders(),
+    );
+    return res.statusCode;
   }
 }

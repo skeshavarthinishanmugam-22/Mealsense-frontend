@@ -49,6 +49,11 @@ class SessionManager {
     return _prefs.getString(_userEmailKey);
   }
 
+  /// Get token creation timestamp
+  int? getTokenTimestamp() {
+    return _prefs.getInt(_tokenTimestampKey);
+  }
+
   /// Check if user is logged in (token exists)
   bool isLoggedIn() {
     return getToken() != null && getToken()!.isNotEmpty;

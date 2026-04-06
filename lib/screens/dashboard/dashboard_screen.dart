@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../providers/user_provider.dart';
-import '../../models/user_model.dart';
 import '../../models/food_model.dart';
 import '../../services/api_service.dart';
 import '../../services/meal_cache_service.dart';
@@ -32,6 +31,13 @@ class _DashboardScreenState extends State<DashboardScreen>
     );
     _fadeAnimation = CurvedAnimation(parent: _fadeController, curve: Curves.easeInOut);
     _fadeController.forward();
+    
+    // Load profile and meals after first frame (safe context access)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        UserProvider.of(context).loadProfile();
+      }
+    });
   }
 
   @override
@@ -180,52 +186,113 @@ class _HomeTabState extends State<_HomeTab> {
   Future<void> _loadTodayFoods() async {
     setState(() => _foodsLoading = true);
     
-    // Try to use cached data first
-    final cache = MealCacheService();
-    final cachedFoods = cache.getCachedFoods();
-    
-    if (cachedFoods != null) {
-      print('[Dashboard] Using cached foods');
+    try {
+      // Try to use cached data first
+      final cache = MealCacheService();
+      final cachedFoods = cache.getCachedFoods();
+      
+      if (cachedFoods != null) {
+        print('[Dashboard] Using cached foods');
+        if (mounted) {
+          setState(() {
+            _todayFoods = cachedFoods;
+            _foodsLoading = false;
+          });
+        }
+        return;
+      }
+      
+      // Fetch from API if cache is empty/invalid
+      print('[Dashboard] Cache miss, fetching from API');
+      final raw = await ApiService.getAllFoodSuggestions(limit: 10);
       if (mounted) {
+        final foods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
+        cache.cacheFoods(foods);
         setState(() {
-          _todayFoods = cachedFoods;
+          _todayFoods = foods;
           _foodsLoading = false;
         });
       }
-      return;
-    }
-    
-    // Fetch from API if cache is empty/invalid
-    print('[Dashboard] Cache miss, fetching from API');
-    final raw = await ApiService.getAllFoodSuggestions(limit: 10);
-    if (mounted) {
-      final foods = raw.map((e) => FoodModel.fromJson(e as Map<String, dynamic>)).toList();
-      cache.cacheFoods(foods);
-      setState(() {
-        _todayFoods = foods;
-        _foodsLoading = false;
-      });
+    } catch (e) {
+      print('[Dashboard] Error loading foods: $e');
+      if (mounted) {
+        setState(() => _foodsLoading = false);
+      }
     }
   }
 
   Future<void> _loadMealPlan() async {
-    // Try to use cached data first
-    final cache = MealCacheService();
-    final cachedPlan = cache.getCachedMealPlan();
-    
-    if (cachedPlan != null) {
-      print('[Dashboard] Using cached meal plan');
-      if (mounted) setState(() { _mealPlan = cachedPlan; _planLoading = false; });
-      return;
+    try {
+      print('[Dashboard] Loading meal plan...');
+      
+      // For now, skip cache and always fetch fresh
+      // TODO: Implement smart caching (e.g., cache for 1 hour)
+      
+      // Fetch from API
+      print('[Dashboard] Fetching meal plan from API');
+      final rawPlan = await ApiService.getDailyMealPlan();
+      
+      print('[Dashboard] Raw API response keys: ${rawPlan.keys.toList()}');
+      
+      // Transform API response to match UI expectations
+      final transformedPlan = _transformMealPlan(rawPlan);
+      
+      print('[Dashboard] Transformed meal plan keys: ${transformedPlan.keys.toList()}');
+      
+      if (mounted) {
+        final cache = MealCacheService();
+        cache.cacheMealPlan(transformedPlan);
+        setState(() { 
+          _mealPlan = transformedPlan; 
+          _planLoading = false; 
+          print('[Dashboard] Meal plan state updated: ${_mealPlan.keys.toList()}');
+        });
+      }
+    } catch (e) {
+      print('[Dashboard] Error loading meal plan: $e');
+      if (mounted) {
+        setState(() => _planLoading = false);
+      }
     }
-    
-    // Fetch from API if cache is empty/invalid
-    print('[Dashboard] Cache miss, fetching meal plan from API');
-    final plan = await ApiService.getDailyMealPlan();
-    if (mounted) {
-      cache.cacheMealPlan(plan);
-      setState(() { _mealPlan = plan; _planLoading = false; });
+  }
+
+  /// Transform API response (with 'meals' array) to UI format (with category keys)
+  Map<String, dynamic> _transformMealPlan(Map<String, dynamic> rawPlan) {
+    final transformed = <String, dynamic>{
+      'targetCalories': rawPlan['dailyCalorieTarget'] as int?,
+      'targetProtein': rawPlan['dailyProteinTarget'] as int?,
+    };
+
+    final mealsArray = rawPlan['meals'] as List<dynamic>?;
+    if (mealsArray != null) {
+      for (var meal in mealsArray) {
+        final mealMap = meal as Map<String, dynamic>;
+        final category = mealMap['category'] as String?;
+        final items = mealMap['items'] as List<dynamic>?;
+        
+        if (category != null && items != null) {
+          // Transform each item to match UI expectations
+          final transformedItems = items.map((item) {
+            final food = item as Map<String, dynamic>;
+            final cals = food['servingGrams'] ?? 100; // Use serving grams as proxy
+            return {
+              ...food,
+              'name': food['foodName'], // Alias for UI
+              'calorieRangeLabel': '${cals} g', // Show serving size
+              'trafficLight': 'GREEN', // Default to green (can enhance with actual logic)
+            };
+          }).toList();
+          
+          // Map category to lowercase key: BREAKFAST → breakfast
+          final key = category.toLowerCase();
+          transformed[key] = transformedItems;
+          
+          print('[Dashboard] Mapped $category → $key with ${transformedItems.length} items');
+        }
+      }
     }
+
+    return transformed;
   }
 
   @override
@@ -273,11 +340,17 @@ class _HomeTabState extends State<_HomeTab> {
               const SizedBox(height: 24),
 
               // ── Daily Meal Plan ──
-              if (!_planLoading && _mealPlan.isNotEmpty) ...[
+              if (_planLoading)
+                const Center(child: CircularProgressIndicator(color: Color(0xFF00C853)))
+              else if (_mealPlan.isNotEmpty) ...[
                 const _SectionTitle(title: 'Daily Meal Plan', subtitle: 'Personalised for your goal'),
                 const SizedBox(height: 14),
                 _MealPlanCard(plan: _mealPlan),
-              ],
+              ] else
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: Center(child: Text('No meal plan available')),
+                ),
             ]),
           ),
         ),
@@ -295,7 +368,7 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final u = UserProvider.of(context).user;
-    final name = u?.name.isNotEmpty == true ? u!.name : dummyUser.name;
+    final name = u?.name.isNotEmpty == true ? u!.name : 'User';
     final goal = u?.goalDisplay ?? '';
     final weight = u?.weightKg ?? 0.0;
     final height = u?.heightCm ?? 0.0;

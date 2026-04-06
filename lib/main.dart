@@ -5,6 +5,7 @@ import 'screens/auth/signup_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'services/session_manager.dart';
+import 'services/session_refresh_manager.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,18 +29,23 @@ class _MealSenseAppState extends State<MealSenseApp> {
     super.initState();
     // Load user from saved session if exists
     _loadUserSession();
+    // Start automatic token refresh if logged in
+    if (SessionManager().isLoggedIn()) {
+      SessionRefreshManager().startAutoRefresh();
+    }
   }
 
   Future<void> _loadUserSession() async {
     final sessionManager = SessionManager();
     if (sessionManager.isLoggedIn() && !sessionManager.isTokenExpired()) {
-      // User has valid token, try to load profile
-      // This would be called from your UserProvider
+      // User has valid token, load full profile
+      await _userNotifier.loadProfile();
     }
   }
 
   @override
   void dispose() {
+    SessionRefreshManager().stopAutoRefresh();
     _userNotifier.dispose();
     super.dispose();
   }
